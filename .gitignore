@@ -48,3 +48,47 @@ app.*.map.json
 android/key.properties
 *.jks
 *.keystore
+
+# Android
+**/android/.gradle/
+**/android/gradle-wrapper.jar
+**/android/local.properties
+**/android/**/GeneratedPluginRegistrant.java
+**/android/key.properties
+
+# iOS/macOS — CocoaPods, Xcode ephemera, and generated config
+**/ios/Flutter/ephemeral/
+**/ios/Flutter/Flutter.framework
+**/ios/Flutter/Flutter.podspec
+**/ios/Flutter/Generated.xcconfig
+**/ios/Flutter/flutter_export_environment.sh
+**/ios/Pods/
+**/ios/.symlinks/
+**/ios/*.xcworkspace/xcshareddata
+**/macos/Flutter/ephemeral/
+**/macos/Flutter/GeneratedPluginRegistrant.swift
+**/macos/Pods/
+**/macos/.symlinks/
+**/Flutter/Generated.xcconfig
+**/Flutter/flutter_export_environment.sh
+**/Pods/
+**/xcuserdata/
+*.mode1v3
+*.mode2v3
+*.moved-aside
+*.pbxuser
+*.perspectivev3
+**/*sync/
+.sconsign.dblite
+.tags*
+**/.vagrant/
+**/DerivedData/
+Icon?
+**/.symlinks/
+profile
+DerivedData/
+.generated/
+
+# Windows/Linux desktop build folders (not used for release, but keep clean)
+windows/flutter/ephemeral/
+linux/flutter/ephemeral/

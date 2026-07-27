@@ -206,10 +206,18 @@ class AppLocalizationsEs extends AppLocalizations {
       'Sin nube: nada sale de tu teléfono a menos que tú lo envíes. Respalda todo en un archivo o restáuralo en un dispositivo nuevo.';
 
   @override
-  String get exportMyData => 'Exportar mis datos';
+  String get exportMyData => 'Guardar en el dispositivo';
 
   @override
-  String get exportMyDataSubtitle => 'Guarda todo en un archivo de respaldo';
+  String get exportMyDataSubtitle =>
+      'Guarda un archivo de respaldo directamente en el almacenamiento de tu teléfono';
+
+  @override
+  String get shareBackupFile => 'Compartir archivo de respaldo';
+
+  @override
+  String get shareBackupFileSubtitle =>
+      'Envíalo por AirDrop, correo u otra app';
 
   @override
   String get importData => 'Importar datos';

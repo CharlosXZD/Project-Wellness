@@ -2,6 +2,12 @@
 
 All notable changes to Project Wellness are recorded here, release by release.
 
+## 2.20.0
+
+- Settings' backup export is now two separate options: "Save to device" writes the backup file straight to wherever you pick (Files, Downloads, an SD card) via the native save dialog, no share sheet required; "Share backup file" keeps the old AirDrop/email/other-app flow.
+- Fixed importing a backup only showing a narrow, easy-to-miss file list on some devices — it now opens the full native file browser.
+- Scanned-product history (added in 2.18.0) is now included in full backup/restore — it was missing from the table list before.
+
 ## 2.19.0
 
 - New 7-day activity strip at the top of the Home, Nutrition, and Training screens — a dot marks each day something was logged (food, a workout, or both on Home). Tap a day on Nutrition to see everything logged that day, or on Training to jump to that day's workout.

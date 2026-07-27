@@ -17,6 +17,7 @@ const _tableOrder = [
   'food_entries',
   'saved_food_combos',
   'personal_foods',
+  'scanned_products',
   'supplements',
   'nutrition_goal',
   'nutrition_goal_history',

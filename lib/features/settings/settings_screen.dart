@@ -1,4 +1,6 @@
+import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -29,12 +31,29 @@ import 'reminders_screen.dart';
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
 
-  Future<void> _exportData(BuildContext context) async {
+  String get _backupFileName =>
+      'project_wellness_backup_${DateFormat('yyyy-MM-dd').format(DateTime.now())}.txt';
+
+  /// Writes the backup straight to wherever the user picks in the native
+  /// "Save As" dialog (Files/Downloads/an SD card/etc.) — no share sheet
+  /// involved, so it lands directly on the device instead of needing a
+  /// second app to receive it.
+  Future<void> _saveDataToDevice(BuildContext context) async {
+    final blob = await exportBackup();
+    final path = await FilePicker.saveFile(
+      fileName: _backupFileName,
+      bytes: Uint8List.fromList(utf8.encode(blob)),
+    );
+    if (!context.mounted || path == null) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Backup saved')),
+    );
+  }
+
+  Future<void> _shareData(BuildContext context) async {
     final blob = await exportBackup();
     final dir = await getTemporaryDirectory();
-    final fileName =
-        'project_wellness_backup_${DateFormat('yyyy-MM-dd').format(DateTime.now())}.txt';
-    final file = File('${dir.path}/$fileName');
+    final file = File('${dir.path}/$_backupFileName');
     await file.writeAsString(blob);
 
     await SharePlus.instance.share(
@@ -46,10 +65,11 @@ class SettingsScreen extends StatelessWidget {
   }
 
   Future<void> _importData(BuildContext context) async {
-    final result = await FilePicker.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['txt'],
-    );
+    // FileType.any (rather than filtering to a custom "txt" extension)
+    // is what makes the native picker show a real "Browse" view across
+    // Files/iCloud/Downloads/etc. — the extension filter used to restrict
+    // it to a narrow, easy-to-miss list on some devices.
+    final result = await FilePicker.pickFiles(type: FileType.any);
     final path = result?.files.single.path;
     if (path == null || !context.mounted) return;
 
@@ -147,7 +167,8 @@ class SettingsScreen extends StatelessWidget {
     final profile = context.watch<ProfileRepository>().profile;
     final unitSystem = context.watch<SettingsRepository>().unitSystem;
     final scheme = Theme.of(context).colorScheme;
-    final healthServiceName = Platform.isIOS ? l10n.appleHealth : l10n.healthConnect;
+    final healthServiceName =
+        Platform.isIOS ? l10n.appleHealth : l10n.healthConnect;
     final biometricMethodName =
         Platform.isIOS ? l10n.faceIdTouchId : l10n.fingerprintOrFace;
 
@@ -200,7 +221,8 @@ class SettingsScreen extends StatelessWidget {
                 title: l10n.personalExercises,
                 subtitle: l10n.personalExercisesSubtitle,
                 onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const PersonalExercisesScreen()),
+                  MaterialPageRoute(
+                      builder: (_) => const PersonalExercisesScreen()),
                 ),
               ),
               const SizedBox(height: 12),
@@ -209,12 +231,14 @@ class SettingsScreen extends StatelessWidget {
                 title: l10n.personalFoods,
                 subtitle: l10n.personalFoodsSubtitle,
                 onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const PersonalFoodsScreen()),
+                  MaterialPageRoute(
+                      builder: (_) => const PersonalFoodsScreen()),
                 ),
               ),
               const SizedBox(height: 28),
             ],
-            Text(l10n.appearance, style: Theme.of(context).textTheme.titleMedium),
+            Text(l10n.appearance,
+                style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 4),
             Text(
               l10n.appearanceDescription,
@@ -264,7 +288,8 @@ class SettingsScreen extends StatelessWidget {
             const _AppLockToggle(),
             const _PinBackupRow(),
             const SizedBox(height: 28),
-            Text('Experimental', style: Theme.of(context).textTheme.titleMedium),
+            Text('Experimental',
+                style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 4),
             Text(
               'Early features that are still being tuned.',
@@ -285,10 +310,17 @@ class SettingsScreen extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             RectButton(
-              icon: Icons.upload_file_outlined,
+              icon: Icons.save_alt_outlined,
               title: l10n.exportMyData,
               subtitle: l10n.exportMyDataSubtitle,
-              onTap: () => _exportData(context),
+              onTap: () => _saveDataToDevice(context),
+            ),
+            const SizedBox(height: 12),
+            RectButton(
+              icon: Icons.ios_share,
+              title: l10n.shareBackupFile,
+              subtitle: l10n.shareBackupFileSubtitle,
+              onTap: () => _shareData(context),
             ),
             const SizedBox(height: 12),
             RectButton(
@@ -319,7 +351,8 @@ class SettingsScreen extends StatelessWidget {
                 borderRadius: BorderRadius.circular(18),
                 onTap: () => _deleteAllData(context),
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
                   child: Row(
                     children: [
                       Container(
@@ -329,7 +362,8 @@ class SettingsScreen extends StatelessWidget {
                           color: scheme.error,
                           borderRadius: BorderRadius.circular(14),
                         ),
-                        child: Icon(Icons.delete_forever_outlined, color: scheme.onError),
+                        child: Icon(Icons.delete_forever_outlined,
+                            color: scheme.onError),
                       ),
                       const SizedBox(width: 16),
                       Expanded(
@@ -339,14 +373,20 @@ class SettingsScreen extends StatelessWidget {
                           children: [
                             Text(
                               l10n.deleteAllData,
-                              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .titleMedium
+                                  ?.copyWith(
                                     color: scheme.onErrorContainer,
                                   ),
                             ),
                             const SizedBox(height: 2),
                             Text(
                               l10n.deleteAllDataCardSubtitle,
-                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodySmall
+                                  ?.copyWith(
                                     color: scheme.onErrorContainer,
                                   ),
                             ),
@@ -365,18 +405,21 @@ class SettingsScreen extends StatelessWidget {
   }
 }
 
-String _themeSeedLabel(AppLocalizations l10n, AppThemeSeed seed) => switch (seed) {
+String _themeSeedLabel(AppLocalizations l10n, AppThemeSeed seed) =>
+    switch (seed) {
       AppThemeSeed.classic => l10n.themeClassic,
       AppThemeSeed.pink => l10n.themePink,
     };
 
-String _themeModeLabel(AppLocalizations l10n, AppThemeMode mode) => switch (mode) {
+String _themeModeLabel(AppLocalizations l10n, AppThemeMode mode) =>
+    switch (mode) {
       AppThemeMode.system => l10n.themeModeSystem,
       AppThemeMode.light => l10n.themeModeLight,
       AppThemeMode.dark => l10n.themeModeDark,
     };
 
-String _unitSystemLabel(AppLocalizations l10n, UnitSystem system) => switch (system) {
+String _unitSystemLabel(AppLocalizations l10n, UnitSystem system) =>
+    switch (system) {
       UnitSystem.metric => l10n.unitSystemMetric,
       UnitSystem.imperial => l10n.unitSystemImperial,
     };
@@ -498,7 +541,8 @@ class _MuscleRankToggle extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text('Body Rank', style: Theme.of(context).textTheme.titleMedium),
+                  Text('Body Rank',
+                      style: Theme.of(context).textTheme.titleMedium),
                   Text(
                     'A per-muscle rank diagram based on your training volume.',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
@@ -510,7 +554,9 @@ class _MuscleRankToggle extends StatelessWidget {
             ),
             Switch(
               value: enabled,
-              onChanged: (value) => context.read<SettingsRepository>().setMuscleRankEnabled(value),
+              onChanged: (value) => context
+                  .read<SettingsRepository>()
+                  .setMuscleRankEnabled(value),
             ),
           ],
         ),
@@ -605,7 +651,8 @@ class _AppLockToggle extends StatelessWidget {
     final l10n = AppLocalizations.of(context)!;
     final enabled = context.watch<SettingsRepository>().appLockEnabled;
     final scheme = Theme.of(context).colorScheme;
-    final methodName = Platform.isIOS ? l10n.faceIdTouchId : l10n.fingerprintSlashFace;
+    final methodName =
+        Platform.isIOS ? l10n.faceIdTouchId : l10n.fingerprintSlashFace;
 
     return Material(
       color: scheme.surfaceContainerHigh,

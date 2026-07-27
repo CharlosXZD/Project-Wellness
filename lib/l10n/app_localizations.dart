@@ -443,14 +443,26 @@ abstract class AppLocalizations {
   /// No description provided for @exportMyData.
   ///
   /// In en, this message translates to:
-  /// **'Export my data'**
+  /// **'Save to device'**
   String get exportMyData;
 
   /// No description provided for @exportMyDataSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'Save everything to a backup file'**
+  /// **'Save a backup file directly to your phone\'s storage'**
   String get exportMyDataSubtitle;
+
+  /// No description provided for @shareBackupFile.
+  ///
+  /// In en, this message translates to:
+  /// **'Share backup file'**
+  String get shareBackupFile;
+
+  /// No description provided for @shareBackupFileSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Send it via AirDrop, email, or another app'**
+  String get shareBackupFileSubtitle;
 
   /// No description provided for @importData.
   ///

@@ -204,10 +204,18 @@ class AppLocalizationsEn extends AppLocalizations {
       'No cloud, nothing leaves your phone unless you send it yourself. Back up everything to a file, or restore it on a new device.';
 
   @override
-  String get exportMyData => 'Export my data';
+  String get exportMyData => 'Save to device';
 
   @override
-  String get exportMyDataSubtitle => 'Save everything to a backup file';
+  String get exportMyDataSubtitle =>
+      'Save a backup file directly to your phone\'s storage';
+
+  @override
+  String get shareBackupFile => 'Share backup file';
+
+  @override
+  String get shareBackupFileSubtitle =>
+      'Send it via AirDrop, email, or another app';
 
   @override
   String get importData => 'Import data';
