@@ -1,0 +1,56 @@
+{
+  "fill-specializations" : [
+    {
+      "value" : {
+        "solid" : "display-p3:0.62549,0.26099,0.44824,1.00000"
+      }
+    },
+    {
+      "appearance" : "dark",
+      "value" : {
+        "solid" : "extended-gray:0.00000,1.00000"
+      }
+    }
+  ],
+  "groups" : [
+    {
+      "layers" : [
+        {
+          "image-name" : "Logo Lines.png",
+          "name" : "Logo Lines"
+        },
+        {
+          "image-name" : "Logo_front.png",
+          "name" : "Logo_front"
+        },
+        {
+          "image-name" : "Logo_Shadow.png",
+          "name" : "Logo_Shadow"
+        },
+        {
+          "hidden" : false,
+          "image-name" : "Logo Pink_Backround_Front.png",
+          "name" : "Logo Pink_Backround_Front"
+        },
+        {
+          "image-name" : "Logo Pink_Backround.png",
+          "name" : "Logo Pink_Backround"
+        }
+      ],
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0.5
+      },
+      "translucency" : {
+        "enabled" : true,
+        "value" : 0.5
+      }
+    }
+  ],
+  "supported-platforms" : {
+    "circles" : [
+      "watchOS"
+    ],
+    "squares" : "shared"
+  }
+}

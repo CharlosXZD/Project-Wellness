@@ -1,0 +1,35 @@
+PODS:
+  - Flutter (1.0.0)
+  - flutter_tesseract_ocr (0.3.4):
+    - Flutter
+    - SwiftyTesseract
+  - health (13.3.1):
+    - Flutter
+  - SwiftyTesseract (3.1.3)
+
+DEPENDENCIES:
+  - Flutter (from `Flutter`)
+  - flutter_tesseract_ocr (from `.symlinks/plugins/flutter_tesseract_ocr/ios`)
+  - health (from `.symlinks/plugins/health/ios`)
+
+SPEC REPOS:
+  trunk:
+    - SwiftyTesseract
+
+EXTERNAL SOURCES:
+  Flutter:
+    :path: Flutter
+  flutter_tesseract_ocr:
+    :path: ".symlinks/plugins/flutter_tesseract_ocr/ios"
+  health:
+    :path: ".symlinks/plugins/health/ios"
+
+SPEC CHECKSUMS:
+  Flutter: cabc95a1d2626b1b06e7179b784ebcf0c0cde467
+  flutter_tesseract_ocr: fffe5de044967e12d184feaded7fabfb546b6042
+  health: 4decf5d74e8f54c58a8c07a385fc72f629a831d9
+  SwiftyTesseract: 1f3d96668ae92dc2208d9842c8a59bea9fad2cbb
+
+PODFILE CHECKSUM: 67eb40c73b0c6e21f7be7344be1404b81a8b7c56
+
+COCOAPODS: 1.17.0

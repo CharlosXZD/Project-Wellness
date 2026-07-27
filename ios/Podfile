@@ -1,0 +1,60 @@
+platform :ios, '15.5'
+
+# CocoaPods analytics sends network stats synchronously affecting flutter build latency.
+ENV['COCOAPODS_DISABLE_STATS'] = 'true'
+
+project 'Runner', {
+  'Debug' => :debug,
+  'Profile' => :release,
+  'Release' => :release,
+}
+
+def flutter_root
+  generated_xcode_build_settings_path = File.expand_path(File.join('..', 'Flutter', 'Generated.xcconfig'), __FILE__)
+  unless File.exist?(generated_xcode_build_settings_path)
+    raise "#{generated_xcode_build_settings_path} must exist. If you're running pod install manually, make sure flutter pub get is executed first"
+  end
+
+  File.foreach(generated_xcode_build_settings_path) do |line|
+    matches = line.match(/FLUTTER_ROOT\=(.*)/)
+    return matches[1].strip if matches
+  end
+  raise "FLUTTER_ROOT not found in #{generated_xcode_build_settings_path}. Try deleting Generated.xcconfig, then run flutter pub get"
+end
+
+require File.expand_path(File.join('packages', 'flutter_tools', 'bin', 'podhelper'), flutter_root)
+
+flutter_ios_podfile_setup
+
+target 'Runner' do
+  use_frameworks!
+
+  flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
+  target 'RunnerTests' do
+    inherit! :search_paths
+  end
+end
+
+post_install do |installer|
+  installer.pods_project.targets.each do |target|
+    flutter_additional_ios_build_settings(target)
+    # Some pods (e.g. home_widget's SPM-backed target) declare a higher
+    # minimum iOS version than CocoaPods otherwise resolves their own pod
+    # target to, which Xcode rejects as a "Target Integrity" mismatch.
+    # Floor every pod target at this app's own deployment target (see
+    # ios/Podfile's `platform :ios` line) so nothing resolves lower.
+    target.build_configurations.each do |config|
+      app_target = Gem::Version.new('15.5')
+      current = Gem::Version.new(config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] || '0')
+      if current < app_target
+        config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.5'
+      end
+      # SwiftyTesseract (a transitive dependency of flutter_tesseract_ocr)
+      # ships no arm64 simulator slice, so it can't run on an Apple Silicon
+      # Mac's simulator without this — excluding arm64 for the simulator SDK
+      # only (never for device or release builds) makes the whole app run
+      # under Rosetta in the simulator instead of failing to build.
+      config.build_settings['EXCLUDED_ARCHS[sdk=iphonesimulator*]'] = 'arm64'
+    end
+  end
+end
