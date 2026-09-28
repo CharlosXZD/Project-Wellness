@@ -1,0 +1,77 @@
+# Builds the signed APK and publishes a GitHub release whenever a version
+# tag (v2.25.0, ...) is pushed. The APK is always attached as
+# ProjectWellness.apk, so .../releases/latest/download/ProjectWellness.apk
+# always points at the newest build.
+#
+# Needs four repository secrets (Settings > Secrets and variables > Actions):
+#   ANDROID_KEYSTORE_BASE64   base64 of the upload keystore (.jks)
+#   ANDROID_KEYSTORE_PASSWORD storePassword from android/key.properties
+#   ANDROID_KEY_PASSWORD      keyPassword from android/key.properties
+#   ANDROID_KEY_ALIAS         keyAlias from android/key.properties
+name: Release APK
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check tag matches pubspec version
+        run: |
+          version=$(grep '^version:' pubspec.yaml | sed 's/version: *//; s/+.*//')
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "Tag $GITHUB_REF_NAME doesn't match pubspec.yaml version $version" >&2
+            exit 1
+          fi
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.6'
+          channel: stable
+          cache: true
+
+      - run: flutter pub get
+      - run: flutter test
+
+      - name: Set up signing key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          echo "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/upload-keystore.jks"
+          cat > android/key.properties <<PROPS
+          storePassword=$STORE_PASSWORD
+          keyPassword=$KEY_PASSWORD
+          keyAlias=$KEY_ALIAS
+          storeFile=$RUNNER_TEMP/upload-keystore.jks
+          PROPS
+
+      - run: flutter build apk --release
+
+      - name: Release notes from CHANGELOG.md
+        run: |
+          version=${GITHUB_REF_NAME#v}
+          awk -v v="## $version" '$0==v{p=1;next} /^## /{if(p)exit} p' CHANGELOG.md > notes.md
+          [ -s notes.md ] || echo "See CHANGELOG.md" > notes.md
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp build/app/outputs/flutter-apk/app-release.apk ProjectWellness.apk
+          gh release create "$GITHUB_REF_NAME" ProjectWellness.apk \
+            --title "$GITHUB_REF_NAME" --notes-file notes.md --latest

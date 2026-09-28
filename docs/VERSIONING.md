@@ -49,4 +49,4 @@ Pure internal refactors with zero user-visible effect (renaming a private class,
 
 - This is a mobile-only app (iOS/Android) despite `macos`/`windows`/`linux` folders existing in the repo from `flutter create` — "release" always means a new APK/IPA, never a web deploy.
 - The app's local SQLite schema has its own independent version counter (`DatabaseHelper`'s `version:` in `lib/core/db/database_helper.dart`, currently well past 12) — bumping *that* is about a migration existing, and is unrelated to whether the app's own X.Y.Z moves. Plenty of Y/Z releases won't touch it; some will.
-- No git repository exists for this project yet (the user will set one up later) — there's no commit/tag step to this process today, just the two files above.
+- Releasing: after the bump + changelog are committed and pushed, push a tag matching the new version (`git tag v2.25.0 && git push origin v2.25.0`). `.github/workflows/release.yml` then runs the tests, builds the signed APK, and publishes a GitHub release with it attached as `ProjectWellness.apk` and that version's changelog section as the notes. The workflow refuses a tag that doesn't match `pubspec.yaml`'s version.
