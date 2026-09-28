@@ -2,6 +2,45 @@
 
 All notable changes to Project Wellness are recorded here, release by release.
 
+## 2.24.0
+
+- Home has a new "Today" card: calories left on a ring, whether you've trained today, and your latest weight. Each part is a shortcut. The Training and Nutrition cards now show live info ("Last: Push Day · yesterday", "1240 of 2095 kcal today") instead of fixed descriptions.
+- Nutrition's today card is now a calorie ring showing how much is left (or how much you're over, in red). Logging options are a compact 2×2 grid, and today's log is grouped by meal with a subtotal for each.
+- Nutrition Insights uses bars instead of a line. Days you didn't log have no bar instead of a drop to zero, today's bar is faded, and you can tap a day's bar to open that day. The dashed line is today's target. Longer views show the weekly/monthly average of logged days.
+- Cycle tracking redesign: shows how many days until your next period (or how many days late it is), your estimated ovulation date and fertile window, your learned cycle length, and each cycle's length in your history. Logging the same period twice now asks first, and deleting a date has Undo.
+
+## 2.23.0
+
+- Reworked the calorie math behind every goal in the app. The old version mapped "7 exercise days a week" onto the top "very intense exercise daily" tier no matter what, which overestimated maintenance by hundreds of calories for someone who lifts about an hour a day. Maintenance is now: resting burn (BMR) × your daily activity outside workouts + the calories your workouts actually burn (days per week × session length × intensity).
+- New "Typical workout length" question in Goals & BMR.
+- Your goal is now one exact number, never a range.
+- New "Learn from my logs" (on by default): once you have 2+ weeks of food logs and 3+ weigh-ins, the app measures your real maintenance from what you ate and how your weight actually moved, and blends it with the formula. The more you log, the more it trusts your data (up to 90%). Obvious typo weigh-ins and half-logged days are ignored.
+- Goals & BMR now shows every step: BMR, the formula estimate, what your logs measured, the blend it used, and "maintenance − deficit = today's target". Setting a target weight also estimates how many weeks it will take at your current pace.
+- Targets never go below a safe minimum (1,500 kcal men, 1,200 women). If your goal would, it's raised and the app tells you.
+
+## 2.22.0
+
+- New full Calendar, opened from the "Calendar" button above the 7-day strip on Home, Nutrition, and Training. Swipe between months. Each day shows dots for food, workouts, and weigh-ins, plus period days when cycle tracking is on. Tap a day to see its calories and macros, workouts, and weight, and jump into any of them.
+- Tapping a rest day on Training's 7-day strip now opens it in the calendar instead of doing nothing.
+
+## 2.21.0
+
+- Weigh-ins can now be fixed. Weight history lists every weigh-in: tap one to change it (weight, date, or note), swipe to delete, with Undo.
+- Logging a weight that's far off your nearby weigh-ins (like 109 typed instead of 209) now asks "Is that right?" before saving.
+- You can pick the date when logging a weight, for a weigh-in you forgot to enter.
+- Food entries can be moved to another day, and deleting one now has Undo instead of a "can't be undone" warning. Past entries also have "Log again today".
+- A single day's food log now has previous/next day arrows, groups entries by meal, and has an "Add food" button to fill in a day you forgot.
+
+## 2.20.1
+
+- Fixed the Nutrition "Today" goal disagreeing with Goals & BMR (and the home-screen widget). Each one calculated it a different way (only some used Health data or the cycle adjustment). They now all use one calculation.
+- Changing your weight in Edit Profile now actually updates it: it's saved as a weigh-in, so charts and calorie goals pick it up. Settings and Edit Profile now show your latest weigh-in instead of the weight you signed up with.
+- Calorie averages no longer count days with nothing logged as 0 kcal, or today while it's still in progress. The averages stay steady instead of dropping every morning.
+- Charts no longer include days from before you started using the app. A "Year" view in your second month starts where your data starts.
+- The weight chart is now drawn to scale in time. Two weigh-ins a month apart are drawn a month apart, not side by side. The change shown is measured against your last weigh-in before the period, so a single weigh-in this month still shows progress.
+- Cycle tracking fixes: ovulation is now estimated ~14 days before your next period instead of at the midpoint of the cycle, which was off by days for anything but a 28-day cycle. A late period is shown as late instead of wrapping back to day 1 as if a new cycle had started. One missed log (a double-length gap) or logging the same period twice no longer throws off the cycle length.
+- Weight fields accept a decimal comma ("95,5").
+
 ## 2.20.0
 
 - Settings' backup export is now two separate options: "Save to device" writes the backup file straight to wherever you pick (Files, Downloads, an SD card) via the native save dialog, no share sheet required; "Share backup file" keeps the old AirDrop/email/other-app flow.

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 /// One day's activity state for [ActivityWeekStrip] — [primaryActive] is
 /// this strip's main signal (food logged on Nutrition, a workout logged on
@@ -39,12 +40,17 @@ class ActivityWeekStrip extends StatelessWidget {
   final Color? secondaryColor;
   final ValueChanged<DateTime> onDayTap;
 
+  /// Shows a "Calendar" header button that opens the full month view — the
+  /// strip only ever covers the last 7 days.
+  final VoidCallback? onOpenCalendar;
+
   const ActivityWeekStrip({
     super.key,
     required this.days,
     required this.primaryColor,
     this.secondaryColor,
     required this.onDayTap,
+    this.onOpenCalendar,
   }) : assert(
             days.length == 7, 'ActivityWeekStrip always shows exactly 7 days');
 
@@ -55,7 +61,7 @@ class ActivityWeekStrip extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final today = DateTime.now();
 
-    return Row(
+    final strip = Row(
       children: [
         for (final day in days)
           Expanded(
@@ -111,6 +117,33 @@ class ActivityWeekStrip extends StatelessWidget {
               ),
             ),
           ),
+      ],
+    );
+
+    if (onOpenCalendar == null) return strip;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.only(left: 4),
+                child: Text(
+                  DateFormat.yMMMM().format(today),
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
+              ),
+            ),
+            TextButton.icon(
+              onPressed: onOpenCalendar,
+              icon: const Icon(Icons.calendar_month_outlined, size: 18),
+              label: const Text('Calendar'),
+              style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
+            ),
+          ],
+        ),
+        strip,
       ],
     );
   }

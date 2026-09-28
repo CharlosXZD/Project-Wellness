@@ -9,8 +9,8 @@ class ActivityLevel {
 
 /// The same 6-tier activity scale used everywhere in this file, but as a
 /// self-reportable enum rather than a derived [ActivityLevel] — lets a
-/// brand-new user (with no workout history yet for
-/// [BmrCalculator.activityFromWeeklySessions] to read) state their activity
+/// brand-new user (with no workout history yet to estimate exercise from)
+/// state their activity
 /// level directly at onboarding. Persisted on [UserProfile.initialActivityLevel].
 ///
 /// Matches the 6-row "daily calories needed" table calculator.net's BMR
@@ -85,18 +85,19 @@ extension JobActivityLevelValue on JobActivityLevel {
     }
   }
 
-  /// How many tiers a demanding job alone nudges the result up by — small
-  /// on purpose. This is a secondary modifier on top of the exercise-driven
-  /// base tier below, not the dominant factor: a desk job shouldn't be able
-  /// to cap someone who trains hard 6 days a week at a low tier.
-  int get _tierBump {
+  /// BMR multiplier for everything *except* structured exercise: digesting
+  /// food plus ordinary daily movement. 1.2 is the standard "sedentary"
+  /// factor every Mifflin-St Jeor calculator uses; the other two follow the
+  /// usual light/moderate physical-activity-level steps for jobs that keep
+  /// you moving all day.
+  double get neatFactor {
     switch (this) {
       case JobActivityLevel.desk:
-        return 0;
+        return 1.2;
       case JobActivityLevel.onFeet:
-        return 0;
+        return 1.35;
       case JobActivityLevel.physical:
-        return 1;
+        return 1.55;
     }
   }
 }
@@ -115,82 +116,76 @@ extension ExerciseIntensityValue on ExerciseIntensity {
     }
   }
 
-  /// How many tiers this intensity nudges the exercise-days base tier by.
-  int get _tierNudge {
+  /// Average MET across a whole session (rest between sets included), from
+  /// the Compendium of Physical Activities: light resistance/circuit work
+  /// ~3.5, a typical moderate lifting session ~5, hard lifting or steady
+  /// cardio ~7.
+  double get met {
     switch (this) {
       case ExerciseIntensity.light:
-        return -1;
+        return 3.5;
       case ExerciseIntensity.moderate:
-        return 0;
+        return 5.0;
       case ExerciseIntensity.hard:
-        return 1;
+        return 7.0;
     }
   }
 }
 
-/// The richer activity questionnaire behind the opt-in "Precise calorie
-/// tracking" setting — daily job activity plus structured exercise
-/// days/week and typical intensity, in place of just guessing from this
-/// app's own workout-session count. A stronger signal than the blunt
-/// session-count heuristic, so [BmrCalculator.calculate] also drops the
-/// target-calorie band entirely (a single number, not a range) when this is
-/// supplied.
+/// Extra calories one exercise session burns *on top of* resting — (MET - 1)
+/// because the resting 1 MET is already inside BMR. 1 MET ≈ 1 kcal per kg
+/// per hour.
+double exerciseSessionKcal({
+  required double weightKg,
+  required int minutes,
+  required ExerciseIntensity intensity,
+}) {
+  return (intensity.met - 1) * weightKg * (minutes / 60);
+}
+
+/// The richer activity questionnaire behind the "Use my activity answers"
+/// setting — daily job activity plus exercise days/week, how long a session
+/// is, and how hard.
+///
+/// An earlier version snapped these answers onto the 6-tier activity table
+/// (1.2 ... 1.9). That broke down for exactly the people who answer this:
+/// "7 days a week" always landed on the top "very intense exercise daily"
+/// 1.9 tier, overestimating a desk worker who lifts for an hour a day by
+/// roughly 900 kcal. Adding up job baseline + actual exercise energy
+/// instead is how dedicated TDEE calculators do it and doesn't have cliffs
+/// between tiers.
 class PreciseActivityInput {
+  static const defaultMinutesPerSession = 60;
+
   final JobActivityLevel job;
   final int exerciseDaysPerWeek;
   final ExerciseIntensity intensity;
+  final int minutesPerSession;
 
   const PreciseActivityInput({
     required this.job,
     required this.exerciseDaysPerWeek,
     required this.intensity,
+    this.minutesPerSession = defaultMinutesPerSession,
   });
 
-  /// Picks one of [SelfReportedActivityLevel]'s six tiers directly — the
-  /// tiers are frequency-branded ("Exercise 1-3x/week", "Intense 6-7x/week",
-  /// etc.), so [exerciseDaysPerWeek] decides the base tier the same way
-  /// [BmrCalculator.activityFromWeeklySessions] does, [intensity] nudges it
-  /// one tier up or down, and [job]'s NEAT baseline only nudges it up by at
-  /// most one tier on top of that.
-  ///
-  /// An earlier version instead summed a job baseline (1.2-1.5) with a
-  /// small per-day exercise bump (0.02-0.05/day) into one continuous score
-  /// and snapped *that* to the nearest tier — which let the job baseline
-  /// dominate: a desk job (1.2) plus 6 days/week of moderate exercise
-  /// (+0.21) only reached 1.41, snapping down to "Exercise 1-3x/week"
-  /// despite 6 actual training days. Deciding from exercise days first
-  /// avoids that.
-  ActivityLevel toActivityLevel() {
-    final tierIndex =
-        (_baseTierIndexForDays(exerciseDaysPerWeek) + intensity._tierNudge + job._tierBump)
-            .clamp(0, SelfReportedActivityLevel.values.length - 1);
-    return SelfReportedActivityLevel.values[tierIndex].activityLevel;
+  /// Average exercise calories per day across the week.
+  double exerciseKcalPerDay(double weightKg) {
+    final perSession = exerciseSessionKcal(
+      weightKg: weightKg,
+      minutes: minutesPerSession,
+      intensity: intensity,
+    );
+    return perSession * exerciseDaysPerWeek / 7;
   }
 
-  /// Same day-count buckets as [BmrCalculator.activityFromWeeklySessions]
-  /// (and so, like it, never lands on [SelfReportedActivityLevel.moderate]
-  /// on its own — [intensity]'s nudge is what reaches that tier).
-  static int _baseTierIndexForDays(int days) {
-    if (days <= 0) return SelfReportedActivityLevel.sedentary.index;
-    if (days <= 2) return SelfReportedActivityLevel.light.index;
-    if (days <= 4) return SelfReportedActivityLevel.fourToFive.index;
-    if (days <= 6) return SelfReportedActivityLevel.active.index;
-    return SelfReportedActivityLevel.extreme.index;
+  double tdee({required double bmr, required double weightKg}) =>
+      bmr * job.neatFactor + exerciseKcalPerDay(weightKg);
+
+  String get summary {
+    final days = exerciseDaysPerWeek == 1 ? '1 day' : '$exerciseDaysPerWeek days';
+    return '${job.label} · $days/week × $minutesPerSession min, ${intensity.label.toLowerCase()}';
   }
-}
-
-class BmrResult {
-  final double bmr;
-  final double tdeeLow;
-  final double tdeeHigh;
-  final ActivityLevel activity;
-
-  const BmrResult({
-    required this.bmr,
-    required this.tdeeLow,
-    required this.tdeeHigh,
-    required this.activity,
-  });
 }
 
 class BmrCalculator {
@@ -203,79 +198,5 @@ class BmrCalculator {
   }) {
     final base = 10 * weightKg + 6.25 * heightCm - 5 * age;
     return sex == Sex.male ? base + 5 : base - 161;
-  }
-
-  /// This session-count guess can't tell "moderate but intense" (the
-  /// [SelfReportedActivityLevel.moderate] tier) apart from a plain frequency
-  /// count, so it only ever lands on the other five tiers — [moderate] is
-  /// reachable through [PreciseActivityInput] or the onboarding self-report.
-  static ActivityLevel activityFromWeeklySessions(int sessionsLast7Days) {
-    if (sessionsLast7Days <= 0) return SelfReportedActivityLevel.sedentary.activityLevel;
-    if (sessionsLast7Days <= 2) return SelfReportedActivityLevel.light.activityLevel;
-    if (sessionsLast7Days <= 4) return SelfReportedActivityLevel.fourToFive.activityLevel;
-    if (sessionsLast7Days <= 6) return SelfReportedActivityLevel.active.activityLevel;
-    return SelfReportedActivityLevel.extreme.activityLevel;
-  }
-
-  /// Alternative to [activityFromWeeklySessions] when real step-count data
-  /// is available (Apple Health / Health Connect) — standard step-count
-  /// activity bands, generally a better signal than a workout-count guess
-  /// since it also captures non-workout daily movement. Same caveat as
-  /// [activityFromWeeklySessions]: never lands on [SelfReportedActivityLevel
-  /// .moderate], since a step count alone can't distinguish that tier from a
-  /// plain frequency-based one.
-  static ActivityLevel activityFromHealthData({
-    required int avgSteps,
-    required double avgActiveEnergyKcal,
-  }) {
-    if (avgSteps < 5000) return SelfReportedActivityLevel.sedentary.activityLevel;
-    if (avgSteps < 7500) return SelfReportedActivityLevel.light.activityLevel;
-    if (avgSteps < 10000) return SelfReportedActivityLevel.fourToFive.activityLevel;
-    if (avgSteps < 12500) return SelfReportedActivityLevel.active.activityLevel;
-    return SelfReportedActivityLevel.extreme.activityLevel;
-  }
-
-  /// Ballpark TDEE range, the way most online calculators present
-  /// maintenance calories rather than claiming false precision — +/- 150
-  /// kcal normally, or an exact single number (no range) when
-  /// [preciseActivity] is supplied, since at that point the answers have
-  /// already picked one specific tier off the table rather than leaving
-  /// room for a guess.
-  ///
-  /// Priority when multiple sources are available: [avgActiveEnergyKcal]
-  /// (real device data) first, then [preciseActivity], then
-  /// [overrideActivity] (health-derived activity tier, or a fallback like
-  /// the user's self-reported onboarding answer — see
-  /// `computeTargetCalories`), then the [sessionsLast7Days] heuristic.
-  static BmrResult calculate({
-    required Sex sex,
-    required double weightKg,
-    required double heightCm,
-    required int age,
-    required int sessionsLast7Days,
-    ActivityLevel? overrideActivity,
-    double? avgActiveEnergyKcal,
-    PreciseActivityInput? preciseActivity,
-  }) {
-    final bmrValue = bmr(sex: sex, weightKg: weightKg, heightCm: heightCm, age: age);
-
-    final activity = overrideActivity ??
-        preciseActivity?.toActivityLevel() ??
-        activityFromWeeklySessions(sessionsLast7Days);
-
-    final tdee = avgActiveEnergyKcal != null
-        ? bmrValue * 1.2 + avgActiveEnergyKcal
-        : bmrValue * activity.multiplier;
-
-    final band = (avgActiveEnergyKcal == null && overrideActivity == null && preciseActivity != null)
-        ? 0.0
-        : 150.0;
-
-    return BmrResult(
-      bmr: bmrValue,
-      tdeeLow: tdee - band,
-      tdeeHigh: tdee + band,
-      activity: activity,
-    );
   }
 }

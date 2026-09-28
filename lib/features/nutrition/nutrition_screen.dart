@@ -2,20 +2,21 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/nutrition/bmr_calculator.dart';
+import '../../core/nutrition/daily_target_scope.dart';
 import '../../core/nutrition/target_calories.dart';
 import '../../core/theme/app_theme.dart';
 import '../../models/food_entry.dart';
 import '../../models/nutrition_goal.dart';
 import '../../models/user_profile.dart';
+import '../calendar/calendar_screen.dart';
 import '../../repositories/nutrition_repository.dart';
 import '../../repositories/profile_repository.dart';
 import '../../repositories/training_repository.dart';
 import '../../widgets/activity_week_strip.dart';
+import '../../widgets/calorie_ring.dart';
 import '../../widgets/macro_bar.dart';
-import '../../widgets/rect_button.dart';
 import '../settings/settings_screen.dart';
 import 'add_food_sheet.dart';
-import 'food_entry_detail_sheet.dart';
 import 'food_picker_screen.dart';
 import 'goals_screen.dart';
 import 'meals_screen.dart';
@@ -33,16 +34,16 @@ import 'supplements_screen.dart';
 bool _shouldShowWorkoutNudge(UserProfile? profile, int sessionsLast7Days) {
   if (profile == null || profile.workoutLoggingNudgeDismissed) return false;
   if (sessionsLast7Days > 1) return false;
-  if (DateTime.now().difference(profile.createdAt) < const Duration(days: 10))
+  if (DateTime.now().difference(profile.createdAt) < const Duration(days: 10)) {
     return false;
+  }
 
   final selfReportedHighActivity =
       profile.initialActivityLevel?.isHighActivity ?? false;
   final preciseInput = profile.preciseCalorieTrackingEnabled
       ? profile.preciseActivityInput
       : null;
-  final preciseHighActivity =
-      (preciseInput?.toActivityLevel().multiplier ?? 0) >= 1.725;
+  final preciseHighActivity = (preciseInput?.exerciseDaysPerWeek ?? 0) >= 5;
 
   return selfReportedHighActivity || preciseHighActivity;
 }
@@ -56,14 +57,10 @@ class NutritionScreen extends StatelessWidget {
     final profile = context.watch<ProfileRepository>().profile;
     final training = context.watch<TrainingRepository>();
     final today = DateTime.now();
-    final todayEntries = repo.entriesForDate(today);
+    final todayEntries = repo.entriesForDate(today)
+      ..sort((a, b) => a.date.compareTo(b.date));
     final totals = repo.totalsForDate(today);
-    final target = computeTargetCalories(
-      profile: profile,
-      goal: repo.goal,
-      currentWeightKg: training.latestWeightKg ?? profile?.weightKg,
-      sessions: training.sessions,
-    );
+    final target = watchDailyTarget(context);
 
     final weekAgo = DateTime.now().subtract(const Duration(days: 7));
     final sessionsLast7Days =
@@ -110,72 +107,80 @@ class NutritionScreen extends StatelessWidget {
                       MaterialPageRoute(
                           builder: (_) => NutritionDayScreen(date: date)),
                     ),
+                    onOpenCalendar: () => Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const CalendarScreen()),
+                    ),
                   ),
                   const SizedBox(height: 16),
                   if (showWorkoutNudge) ...[
                     const _WorkoutLoggingNudgeBanner(),
                     const SizedBox(height: 16),
                   ],
-                  _SummaryCard(totals: totals, goal: repo.goal, target: target),
+                  _SummaryCard(totals: totals, target: target),
                   const SizedBox(height: 28),
                   Text(
                     'Log food',
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
                   const SizedBox(height: 12),
-                  RectButton(
-                    icon: Icons.search,
-                    title: 'Search food',
-                    subtitle: 'Pick a food, enter the amount',
-                    onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute(
-                          builder: (_) => const FoodPickerScreen()),
-                    ),
+                  GridView.count(
+                    crossAxisCount: 2,
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    mainAxisSpacing: 12,
+                    crossAxisSpacing: 12,
+                    childAspectRatio: 1.9,
+                    children: [
+                      _LogTile(
+                        icon: Icons.search,
+                        title: 'Search food',
+                        onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                              builder: (_) => const FoodPickerScreen()),
+                        ),
+                      ),
+                      _LogTile(
+                        icon: Icons.qr_code_scanner,
+                        title: 'Scan',
+                        onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute(builder: (_) => const ScanScreen()),
+                        ),
+                      ),
+                      _LogTile(
+                        icon: Icons.fastfood,
+                        title: 'My snacks',
+                        onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                              builder: (_) => const SnacksScreen()),
+                        ),
+                      ),
+                      _LogTile(
+                        icon: Icons.restaurant_menu,
+                        title: 'My meals',
+                        onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute(builder: (_) => const MealsScreen()),
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 12),
-                  RectButton(
-                    icon: Icons.qr_code_scanner,
-                    title: 'Scan barcode or label',
-                    subtitle:
-                        'Look it up or read nutrition facts with the camera',
-                    onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => const ScanScreen()),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  RectButton(
-                    icon: Icons.history,
-                    title: 'Previously scanned',
-                    subtitle: 'Log or save something you\'ve scanned before',
-                    onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute(
-                          builder: (_) => const ScannedProductsScreen()),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  RectButton(
-                    icon: Icons.fastfood,
-                    title: 'My snacks',
-                    subtitle: 'One tap to add a saved snack',
-                    onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => const SnacksScreen()),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  RectButton(
-                    icon: Icons.restaurant_menu,
-                    title: 'Add meal',
-                    subtitle:
-                        'Breakfast, lunch, or dinner — build from ingredients',
-                    onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => const MealsScreen()),
-                    ),
-                  ),
-                  Center(
-                    child: TextButton(
-                      onPressed: () => showAddFoodSheet(context),
-                      child: const Text('Add manually'),
-                    ),
+                  const SizedBox(height: 4),
+                  Wrap(
+                    alignment: WrapAlignment.center,
+                    children: [
+                      TextButton.icon(
+                        onPressed: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                              builder: (_) => const ScannedProductsScreen()),
+                        ),
+                        icon: const Icon(Icons.history, size: 18),
+                        label: const Text('Previously scanned'),
+                      ),
+                      TextButton.icon(
+                        onPressed: () => showAddFoodSheet(context),
+                        icon: const Icon(Icons.edit_note, size: 18),
+                        label: const Text('Add manually'),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 24),
                   Text(
@@ -186,9 +191,14 @@ class NutritionScreen extends StatelessWidget {
                   if (todayEntries.isEmpty)
                     const _EmptyState()
                   else
-                    ...todayEntries.map(
-                      (entry) => _FoodTile(entry: entry),
-                    ),
+                    for (final meal in MealType.values)
+                      if (todayEntries.any((e) => e.mealType == meal))
+                        MealGroup(
+                          meal: meal,
+                          entries: todayEntries
+                              .where((e) => e.mealType == meal)
+                              .toList(),
+                        ),
                 ],
               ),
       ),
@@ -198,17 +208,15 @@ class NutritionScreen extends StatelessWidget {
 
 class _SummaryCard extends StatelessWidget {
   final MacroTotals totals;
-  final NutritionGoal? goal;
-  final TargetCalories? target;
+  final DailyTarget? target;
 
-  const _SummaryCard(
-      {required this.totals, required this.goal, required this.target});
+  const _SummaryCard({required this.totals, required this.target});
 
   @override
   Widget build(BuildContext context) {
-    final goal = this.goal;
     final target = this.target;
     final scheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
 
     return Card(
       clipBehavior: Clip.antiAlias,
@@ -223,47 +231,48 @@ class _SummaryCard extends StatelessWidget {
             children: [
               Row(
                 children: [
+                  CalorieRing(
+                    eaten: totals.calories,
+                    target: target?.kcal,
+                    color: AppColors.nutrition,
+                  ),
+                  const SizedBox(width: 20),
                   Expanded(
-                    child: Text('Today',
-                        style: Theme.of(context).textTheme.titleMedium),
-                  ),
-                  if (target != null)
-                    Text(
-                      '${(totals.calories / ((target.low + target.high) / 2) * 100).clamp(0, 999).round()}% of goal',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: scheme.onSurfaceVariant,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Eaten',
+                            style: textTheme.labelLarge
+                                ?.copyWith(color: scheme.onSurfaceVariant)),
+                        Text('${totals.calories.round()} kcal',
+                            style: textTheme.titleLarge),
+                        const SizedBox(height: 10),
+                        Text('Goal',
+                            style: textTheme.labelLarge
+                                ?.copyWith(color: scheme.onSurfaceVariant)),
+                        Text(
+                          target == null ? 'Set up in Goals' : formatKcal(target.kcal),
+                          style: textTheme.titleLarge,
+                        ),
+                        if (target != null && target.mode != GoalMode.maintain)
+                          Text(
+                            '${target.mode.label} · ${target.goalAdjustmentKcal.abs().round()} kcal',
+                            style: textTheme.bodySmall
+                                ?.copyWith(color: scheme.onSurfaceVariant),
                           ),
+                      ],
                     ),
-                  const SizedBox(width: 6),
-                  Icon(
-                    Icons.show_chart,
-                    size: 18,
-                    color: scheme.onSurfaceVariant,
                   ),
+                  Icon(Icons.chevron_right, color: scheme.onSurfaceVariant),
                 ],
               ),
-              const SizedBox(height: 4),
-              Text(
-                '${totals.calories.toStringAsFixed(0)} kcal',
-                style: Theme.of(context).textTheme.headlineSmall,
-              ),
-              if (target != null) ...[
-                const SizedBox(height: 2),
-                Text(
-                  'Goal: ${formatCalorieRange(target.low, target.high)}'
-                  '${goal != null && goal.mode != GoalMode.maintain ? ' · ${goal.mode.label}' : ''}',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: scheme.onSurfaceVariant,
-                      ),
-                ),
-              ],
               const SizedBox(height: 20),
               MacroBar(
                 proteinG: totals.proteinG,
                 carbsG: totals.carbsG,
                 fatG: totals.fatG,
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 12),
               MacroLegendRow(
                 proteinG: totals.proteinG,
                 carbsG: totals.carbsG,
@@ -277,35 +286,44 @@ class _SummaryCard extends StatelessWidget {
   }
 }
 
-class _FoodTile extends StatelessWidget {
-  final FoodEntry entry;
+class _LogTile extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final VoidCallback onTap;
 
-  const _FoodTile({required this.entry});
+  const _LogTile({required this.icon, required this.title, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    final grams = entry.grams;
-    final title = grams != null
-        ? '${entry.name} · ${grams.toStringAsFixed(0)}g'
-        : entry.name;
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Card(
-        child: ListTile(
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 16,
-            vertical: 4,
-          ),
-          onTap: () => showFoodEntryDetailSheet(context, entry),
-          title: Text(title),
-          subtitle: Text(
-            '${entry.mealType.label} · P${entry.proteinG.toStringAsFixed(0)} '
-            'C${entry.carbsG.toStringAsFixed(0)} F${entry.fatG.toStringAsFixed(0)}',
-          ),
-          trailing: Text(
-            '${entry.calories.toStringAsFixed(0)} kcal',
-            style: Theme.of(context).textTheme.titleMedium,
+    final scheme = Theme.of(context).colorScheme;
+    return Material(
+      color: scheme.surfaceContainerHigh,
+      borderRadius: BorderRadius.circular(18),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          child: Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: AppColors.nutrition.withValues(alpha: 0.18),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, color: AppColors.nutrition, size: 22),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  title,
+                  style: Theme.of(context).textTheme.titleSmall,
+                  maxLines: 2,
+                ),
+              ),
+            ],
           ),
         ),
       ),

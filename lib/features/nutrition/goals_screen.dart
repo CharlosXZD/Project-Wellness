@@ -1,14 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../../core/cycle/cycle_calculator.dart';
-import '../../core/health/health_service.dart';
 import '../../core/nutrition/bmr_calculator.dart';
+import '../../core/nutrition/daily_target_scope.dart';
 import '../../core/nutrition/target_calories.dart';
 import '../../core/units/units.dart';
 import '../../models/nutrition_goal.dart';
 import '../../models/user_profile.dart';
-import '../../repositories/cycle_repository.dart';
 import '../../repositories/nutrition_repository.dart';
 import '../../repositories/profile_repository.dart';
 import '../../repositories/settings_repository.dart';
@@ -27,38 +25,22 @@ class _GoalsScreenState extends State<GoalsScreen> {
   late GoalIntensity _intensity;
   double? _customCalorieDelta;
   late final TextEditingController _targetWeightController;
-  HealthActivitySummary? _healthActivity;
-  late bool _preciseModeEnabled;
-  JobActivityLevel? _jobActivityLevel;
-  int? _exerciseDaysPerWeek;
-  ExerciseIntensity? _exerciseIntensity;
 
   @override
   void initState() {
     super.initState();
     final goal = context.read<NutritionRepository>().goal;
-    final profile = context.read<ProfileRepository>().profile;
     final unitSystem = context.read<SettingsRepository>().unitSystem;
     _mode = goal?.mode ?? GoalMode.maintain;
     _intensity = goal?.intensity ?? GoalIntensity.moderate;
     _customCalorieDelta = goal?.customCalorieDelta;
-    _preciseModeEnabled = profile?.preciseCalorieTrackingEnabled ?? false;
-    _jobActivityLevel = profile?.jobActivityLevel;
-    _exerciseDaysPerWeek = profile?.exerciseDaysPerWeek;
-    _exerciseIntensity = profile?.exerciseIntensity;
     _targetWeightController = TextEditingController(
       text: goal?.targetWeightKg == null
           ? ''
-          : (unitSystem == UnitSystem.metric
-                  ? goal!.targetWeightKg!
-                  : Units.kgToLbs(goal!.targetWeightKg!))
-              .toStringAsFixed(1),
+          : Units.formatNumber(
+              unitSystem == UnitSystem.metric ? goal!.targetWeightKg! : Units.kgToLbs(goal!.targetWeightKg!),
+            ),
     );
-    if (context.read<SettingsRepository>().healthSyncEnabled) {
-      HealthService.instance.averageDailyActivity().then((summary) {
-        if (mounted) setState(() => _healthActivity = summary);
-      });
-    }
   }
 
   @override
@@ -69,10 +51,7 @@ class _GoalsScreenState extends State<GoalsScreen> {
 
   Future<void> _save() async {
     final unitSystem = context.read<SettingsRepository>().unitSystem;
-    final targetWeight = Units.parseWeightToKg(
-      _targetWeightController.text.trim(),
-      unitSystem,
-    );
+    final targetWeight = Units.parseWeightToKg(_targetWeightController.text.trim(), unitSystem);
     await context.read<NutritionRepository>().saveGoal(
           NutritionGoal(
             mode: _mode,
@@ -89,23 +68,6 @@ class _GoalsScreenState extends State<GoalsScreen> {
     }
   }
 
-  /// Precise-activity fields save immediately on change, like a settings
-  /// toggle, rather than being batched into the "Save goal" button below —
-  /// they describe the person, not this particular goal.
-  Future<void> _savePreciseActivity() async {
-    final repo = context.read<ProfileRepository>();
-    final profile = repo.profile;
-    if (profile == null) return;
-    await repo.saveProfile(
-      profile.copyWith(
-        preciseCalorieTrackingEnabled: _preciseModeEnabled,
-        jobActivityLevel: _jobActivityLevel,
-        exerciseDaysPerWeek: _exerciseDaysPerWeek,
-        exerciseIntensity: _exerciseIntensity,
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final profile = context.watch<ProfileRepository>().profile;
@@ -119,38 +81,18 @@ class _GoalsScreenState extends State<GoalsScreen> {
               ? _MissingSexPrompt(profile: profile)
               : _GoalsBody(
                   profile: profile,
-                  mode: _mode,
-                  intensity: _intensity,
-                  customCalorieDelta: _customCalorieDelta,
+                  goal: NutritionGoal(
+                    mode: _mode,
+                    intensity: _intensity,
+                    customCalorieDelta: _customCalorieDelta,
+                    updatedAt: DateTime.now(),
+                  ),
                   targetWeightController: _targetWeightController,
                   unitSystem: unitSystem,
-                  healthActivity: _healthActivity,
-                  preciseModeEnabled: _preciseModeEnabled,
-                  jobActivityLevel: _jobActivityLevel,
-                  exerciseDaysPerWeek: _exerciseDaysPerWeek,
-                  exerciseIntensity: _exerciseIntensity,
                   onModeChanged: (mode) => setState(() => _mode = mode),
-                  onIntensityChanged: (intensity) =>
-                      setState(() => _intensity = intensity),
-                  onCustomCalorieDeltaChanged: (delta) =>
-                      setState(() => _customCalorieDelta = delta),
+                  onIntensityChanged: (intensity) => setState(() => _intensity = intensity),
+                  onCustomCalorieDeltaChanged: (delta) => setState(() => _customCalorieDelta = delta),
                   onTargetWeightChanged: () => setState(() {}),
-                  onPreciseModeEnabledChanged: (enabled) {
-                    setState(() => _preciseModeEnabled = enabled);
-                    _savePreciseActivity();
-                  },
-                  onJobActivityLevelChanged: (job) {
-                    setState(() => _jobActivityLevel = job);
-                    _savePreciseActivity();
-                  },
-                  onExerciseDaysPerWeekChanged: (days) {
-                    setState(() => _exerciseDaysPerWeek = days);
-                    _savePreciseActivity();
-                  },
-                  onExerciseIntensityChanged: (intensity) {
-                    setState(() => _exerciseIntensity = intensity);
-                    _savePreciseActivity();
-                  },
                 ),
       bottomNavigationBar: profile == null || profile.sex == null
           ? null
@@ -194,16 +136,14 @@ class _MissingSexPrompt extends StatelessWidget {
             children: [
               Expanded(
                 child: OutlinedButton(
-                  onPressed: () =>
-                      context.read<ProfileRepository>().updateSex(Sex.male),
+                  onPressed: () => context.read<ProfileRepository>().updateSex(Sex.male),
                   child: const Text('Male'),
                 ),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: OutlinedButton(
-                  onPressed: () =>
-                      context.read<ProfileRepository>().updateSex(Sex.female),
+                  onPressed: () => context.read<ProfileRepository>().updateSex(Sex.female),
                   child: const Text('Female'),
                 ),
               ),
@@ -215,268 +155,150 @@ class _MissingSexPrompt extends StatelessWidget {
   }
 }
 
-/// Everything below the "Estimated BMR"/goal math funnels toward one
-/// number: today's target-calorie range. That's the hero at the top (with
-/// a progress bar against what's actually been logged), then how much of
-/// it is left to eat, then "Goal" and "Target weight" as the two inputs
-/// that shape the hero number, and finally the biology/activity
-/// explanation (plus the advanced precision questionnaire) tucked into a
-/// collapsed "How we calculated this" section at the bottom — reference
-/// material, not something to wade through to change your goal.
+/// Everything funnels toward one number: today's calorie target. That's
+/// the hero at the top (with the maintenance − deficit arithmetic spelled
+/// out), then the two inputs that shape it (goal, target weight), then the
+/// full calculation — BMR, the formula estimate, what the user's own logs
+/// measured, and the activity questions — in a section below.
 class _GoalsBody extends StatelessWidget {
   final UserProfile profile;
-  final GoalMode mode;
-  final GoalIntensity intensity;
-  final double? customCalorieDelta;
+  final NutritionGoal goal;
   final TextEditingController targetWeightController;
   final UnitSystem unitSystem;
   final ValueChanged<GoalMode> onModeChanged;
   final ValueChanged<GoalIntensity> onIntensityChanged;
   final ValueChanged<double?> onCustomCalorieDeltaChanged;
   final VoidCallback onTargetWeightChanged;
-  final HealthActivitySummary? healthActivity;
-  final bool preciseModeEnabled;
-  final JobActivityLevel? jobActivityLevel;
-  final int? exerciseDaysPerWeek;
-  final ExerciseIntensity? exerciseIntensity;
-  final ValueChanged<bool> onPreciseModeEnabledChanged;
-  final ValueChanged<JobActivityLevel> onJobActivityLevelChanged;
-  final ValueChanged<int> onExerciseDaysPerWeekChanged;
-  final ValueChanged<ExerciseIntensity> onExerciseIntensityChanged;
 
   const _GoalsBody({
     required this.profile,
-    required this.mode,
-    required this.intensity,
-    required this.customCalorieDelta,
+    required this.goal,
     required this.targetWeightController,
     required this.unitSystem,
     required this.onModeChanged,
     required this.onIntensityChanged,
     required this.onCustomCalorieDeltaChanged,
     required this.onTargetWeightChanged,
-    this.healthActivity,
-    required this.preciseModeEnabled,
-    required this.jobActivityLevel,
-    required this.exerciseDaysPerWeek,
-    required this.exerciseIntensity,
-    required this.onPreciseModeEnabledChanged,
-    required this.onJobActivityLevelChanged,
-    required this.onExerciseDaysPerWeekChanged,
-    required this.onExerciseIntensityChanged,
   });
 
   @override
   Widget build(BuildContext context) {
-    final training = context.watch<TrainingRepository>();
-    final settings = context.watch<SettingsRepository>();
-    final cycle = context.watch<CycleRepository>();
     final nutrition = context.watch<NutritionRepository>();
     final todayCalories = nutrition.totalsForDate(DateTime.now()).calories;
     final scheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
 
-    final cyclePhase = settings.cycleTrackingEnabled
-        ? currentPhase(cycle.entries.map((e) => e.date).toList())
-        : null;
-    final cycleAdjustmentKcal = settings.cycleAdjustCalories
-        ? lutealCalorieAdjustment(cyclePhase)
-        : null;
-
-    final weekAgo = DateTime.now().subtract(const Duration(days: 7));
-    final sessionsLast7Days =
-        training.sessions.where((s) => s.date.isAfter(weekAgo)).length;
-
-    final currentWeight = training.latestWeightKg ?? profile.weightKg;
-
-    final activity = healthActivity;
-    final healthOverrideActivity = activity == null
-        ? null
-        : BmrCalculator.activityFromHealthData(
-            avgSteps: activity.avgSteps,
-            avgActiveEnergyKcal: activity.avgActiveEnergyKcal,
-          );
-
-    final resolved = resolveActivitySources(
-      profile: profile,
-      sessionsLast7Days: sessionsLast7Days,
-      overrideActivity: healthOverrideActivity,
-    );
-
-    final result = BmrCalculator.calculate(
-      sex: profile.sex!,
-      weightKg: currentWeight,
-      heightCm: profile.heightCm,
-      age: profile.age,
-      sessionsLast7Days: sessionsLast7Days,
-      overrideActivity: resolved.overrideActivity,
-      avgActiveEnergyKcal: activity?.avgActiveEnergyKcal,
-      preciseActivity: resolved.preciseActivity,
-    );
-
-    final goal = NutritionGoal(
-      mode: mode,
-      intensity: intensity,
-      customCalorieDelta: customCalorieDelta,
-      updatedAt: DateTime.now(),
-    );
-
-    final target = computeTargetCalories(
-      profile: profile,
-      goal: goal,
-      currentWeightKg: currentWeight,
-      sessions: training.sessions,
-      overrideActivity: healthOverrideActivity,
-      avgActiveEnergyKcal: activity?.avgActiveEnergyKcal,
-      cyclePhaseAdjustmentKcal: cycleAdjustmentKcal,
-    )!;
-
+    final target = watchDailyTarget(context, goal: goal)!;
     final targetWeightKg = targetWeightController.text.trim().isEmpty
         ? null
         : Units.parseWeightToKg(targetWeightController.text.trim(), unitSystem);
-
-    // Same goal (deficit/surplus/maintain), same math, just with the
-    // target weight substituted in — so this reflects what you'd actually
-    // eat once you get there, not a bare maintenance-only estimate.
-    final targetAtGoalWeight = targetWeightKg == null
+    final atTargetWeight = targetWeightKg == null || targetWeightKg <= 0
         ? null
-        : computeTargetCalories(
-            profile: profile,
-            goal: goal,
-            currentWeightKg: targetWeightKg,
-            sessions: training.sessions,
-            overrideActivity: healthOverrideActivity,
-            avgActiveEnergyKcal: activity?.avgActiveEnergyKcal,
-            cyclePhaseAdjustmentKcal: cycleAdjustmentKcal,
-          );
+        : watchDailyTarget(context, goal: goal, weightKg: targetWeightKg);
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
       children: [
-        _TodayTargetCard(
-          mode: mode,
-          target: target,
-          todayCalories: todayCalories,
-          cycleAdjustmentKcal: cycleAdjustmentKcal,
-        ),
+        _TodayTargetCard(target: target, todayCalories: todayCalories),
         const SizedBox(height: 16),
-        _LoggedIntakeCard(target: target, todayCalories: todayCalories),
-        const SizedBox(height: 24),
         Card(
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Goal', style: Theme.of(context).textTheme.titleMedium),
+                Text('Goal', style: textTheme.titleMedium),
                 const SizedBox(height: 12),
                 CalorieDeltaEditor(
-                  mode: mode,
-                  intensity: intensity,
-                  customCalorieDelta: customCalorieDelta,
+                  mode: goal.mode,
+                  intensity: goal.intensity,
+                  customCalorieDelta: goal.customCalorieDelta,
                   onModeChanged: onModeChanged,
                   onIntensityChanged: onIntensityChanged,
                   onCustomCalorieDeltaChanged: onCustomCalorieDeltaChanged,
                 ),
+                if (goal.mode != GoalMode.maintain) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    '≈ ${Units.formatWeight(goal.effectiveCalorieDelta * 7 / kcalPerKgBodyWeight, unitSystem)} per week',
+                    style: textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+                  ),
+                ],
                 const Divider(height: 32),
-                Text('Target weight', style: Theme.of(context).textTheme.titleMedium),
+                Text('Target weight', style: textTheme.titleMedium),
                 const SizedBox(height: 4),
                 Text(
                   'Optional — set one to see progress and what you\'d eat once you get there.',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: scheme.onSurfaceVariant,
-                      ),
+                  style: textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
                 ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: targetWeightController,
                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
                   decoration: InputDecoration(
-                    labelText: 'Target weight (${Units.weightUnitLabel(unitSystem)})',
+                    labelText: 'Target weight',
+                    suffixText: Units.weightUnitLabel(unitSystem),
                   ),
                   onChanged: (_) => onTargetWeightChanged(),
                 ),
-                if (targetWeightKg != null) ...[
+                if (targetWeightKg != null && atTargetWeight != null) ...[
                   const SizedBox(height: 16),
                   _WeightProgress(
-                    currentWeightKg: currentWeight,
+                    currentWeightKg: target.weightKg,
                     targetWeightKg: targetWeightKg,
+                    weeklyChangeKg: goal.mode == GoalMode.maintain
+                        ? null
+                        : goal.effectiveCalorieDelta * 7 / kcalPerKgBodyWeight,
                     unitSystem: unitSystem,
                   ),
-                  if (targetAtGoalWeight != null) ...[
-                    const SizedBox(height: 12),
-                    Text(
-                      'At that weight',
-                      style: Theme.of(context).textTheme.labelLarge,
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      formatCalorieRange(targetAtGoalWeight.low, targetAtGoalWeight.high),
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
-                    Text(
-                      mode == GoalMode.maintain
-                          ? 'To maintain it'
-                          : 'Same ${mode.label.toLowerCase()}, at your target weight',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: scheme.onSurfaceVariant,
-                          ),
-                    ),
-                  ],
+                  const SizedBox(height: 12),
+                  Text('At that weight', style: textTheme.labelLarge),
+                  const SizedBox(height: 4),
+                  Text(formatKcal(atTargetWeight.kcal), style: textTheme.titleLarge),
+                  Text(
+                    goal.mode == GoalMode.maintain
+                        ? 'To maintain it'
+                        : 'Same ${goal.mode.label.toLowerCase()}, at your target weight · '
+                            '${formatKcal(atTargetWeight.maintenanceKcal)} to maintain',
+                    style: textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+                  ),
                 ],
               ],
             ),
           ),
         ),
         const SizedBox(height: 24),
-        _CalculationDetails(
-          bmr: result.bmr,
-          activityLabel: _activitySourceLabel(
-            activityLabel: result.activity.label,
-            hasHealthData: activity != null,
-            hasPreciseActivity: resolved.preciseActivity != null,
-            hasInitialActivityFallback: resolved.overrideActivity != null && activity == null,
-            sessionsLast7Days: sessionsLast7Days,
-          ),
-          tdeeLow: result.tdeeLow,
-          tdeeHigh: result.tdeeHigh,
-          preciseModeEnabled: preciseModeEnabled,
-          jobActivityLevel: jobActivityLevel,
-          exerciseDaysPerWeek: exerciseDaysPerWeek,
-          exerciseIntensity: exerciseIntensity,
-          onPreciseModeEnabledChanged: onPreciseModeEnabledChanged,
-          onJobActivityLevelChanged: onJobActivityLevelChanged,
-          onExerciseDaysPerWeekChanged: onExerciseDaysPerWeekChanged,
-          onExerciseIntensityChanged: onExerciseIntensityChanged,
-        ),
+        Text('How we calculated this', style: textTheme.titleMedium),
+        const SizedBox(height: 12),
+        _CalculationCard(profile: profile, target: target, unitSystem: unitSystem),
+        const SizedBox(height: 16),
+        _ActivitySection(profile: profile),
       ],
     );
   }
 }
 
-/// The hero number — what to actually eat today, front and center instead
-/// of buried under the biology that produced it. Reflects [mode] directly:
-/// by default this is plain maintenance, but a deficit/surplus goal shifts
-/// the number (and the chip) accordingly — same `target` this whole screen
-/// (and the rest of the app) computes from, so it can never drift out of
-/// sync with what "Deficit"/"Surplus" actually mean elsewhere.
+/// The hero number, with the arithmetic that produced it right underneath.
 class _TodayTargetCard extends StatelessWidget {
-  final GoalMode mode;
-  final TargetCalories target;
+  final DailyTarget target;
   final double todayCalories;
-  final int? cycleAdjustmentKcal;
 
-  const _TodayTargetCard({
-    required this.mode,
-    required this.target,
-    required this.todayCalories,
-    this.cycleAdjustmentKcal,
-  });
+  const _TodayTargetCard({required this.target, required this.todayCalories});
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final reference = (target.low + target.high) / 2;
-    final fraction = reference <= 0 ? 0.0 : (todayCalories / reference).clamp(0.0, 1.0);
+    final textTheme = Theme.of(context).textTheme;
+    final fraction = target.kcal <= 0 ? 0.0 : (todayCalories / target.kcal).clamp(0.0, 1.0);
+    final remaining = target.kcal - todayCalories;
+    final onColor = scheme.onPrimaryContainer;
+
+    final parts = <String>[
+      '${target.maintenanceKcal.round()} maintenance',
+      if (target.goalAdjustmentKcal != 0)
+        '${target.goalAdjustmentKcal < 0 ? '−' : '+'} ${target.goalAdjustmentKcal.abs().round()} ${target.mode.label.toLowerCase()}',
+      if (target.cycleAdjustmentKcal != null) '+ ${target.cycleAdjustmentKcal} luteal phase',
+    ];
 
     return Card(
       color: scheme.primaryContainer,
@@ -488,16 +310,11 @@ class _TodayTargetCard extends StatelessWidget {
             Row(
               children: [
                 Expanded(
-                  child: Text(
-                    "Today's target",
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          color: scheme.onPrimaryContainer,
-                        ),
-                  ),
+                  child: Text("Today's target", style: textTheme.titleMedium?.copyWith(color: onColor)),
                 ),
-                if (mode != GoalMode.maintain)
+                if (target.mode != GoalMode.maintain)
                   Chip(
-                    label: Text(mode.label),
+                    label: Text(target.mode.label),
                     labelStyle: TextStyle(color: scheme.onPrimary),
                     backgroundColor: scheme.primary,
                     visualDensity: VisualDensity.compact,
@@ -506,21 +323,26 @@ class _TodayTargetCard extends StatelessWidget {
                   ),
               ],
             ),
-            const SizedBox(height: 4),
             Text(
-              formatCalorieRange(target.low, target.high),
-              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                    color: scheme.onPrimaryContainer,
-                    fontWeight: FontWeight.bold,
-                  ),
+              formatKcal(target.kcal),
+              style: textTheme.displaySmall?.copyWith(color: onColor, fontWeight: FontWeight.w700),
             ),
-            if (cycleAdjustmentKcal != null) ...[
-              const SizedBox(height: 4),
-              Text(
-                '+$cycleAdjustmentKcal kcal · luteal phase',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: scheme.onPrimaryContainer,
+            const SizedBox(height: 2),
+            Text(parts.join(' '), style: textTheme.bodySmall?.copyWith(color: onColor)),
+            if (target.raisedToMinimum) ...[
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  Icon(Icons.info_outline, size: 16, color: onColor),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      'Raised to the ${target.kcal.round()} kcal safe minimum — '
+                      'pick a gentler goal to lose weight sustainably.',
+                      style: textTheme.bodySmall?.copyWith(color: onColor),
                     ),
+                  ),
+                ],
               ),
             ],
             const SizedBox(height: 16),
@@ -528,85 +350,15 @@ class _TodayTargetCard extends StatelessWidget {
               borderRadius: BorderRadius.circular(4),
               child: LinearProgressIndicator(
                 value: fraction,
-                minHeight: 6,
-                backgroundColor: scheme.onPrimaryContainer.withValues(alpha: 0.15),
-                color: scheme.onPrimaryContainer,
+                minHeight: 8,
+                backgroundColor: onColor.withValues(alpha: 0.15),
+                color: onColor,
               ),
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 6),
             Text(
-              '${todayCalories.round()} of ${reference.round()} kcal logged',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: scheme.onPrimaryContainer,
-                  ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// What's actually been logged today, and what's left against the target
-/// above — a precise readout to sit next to that card's progress bar, since
-/// a bar communicates "roughly how full" but not the exact numbers.
-class _LoggedIntakeCard extends StatelessWidget {
-  final TargetCalories target;
-  final double todayCalories;
-
-  const _LoggedIntakeCard({required this.target, required this.todayCalories});
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final reference = (target.low + target.high) / 2;
-    final remaining = reference - todayCalories;
-
-    return Card(
-      color: scheme.tertiaryContainer,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    "Today's intake",
-                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                          color: scheme.onTertiaryContainer,
-                        ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    '${todayCalories.round()} kcal',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          color: scheme.onTertiaryContainer,
-                          fontWeight: FontWeight.bold,
-                        ),
-                  ),
-                ],
-              ),
-            ),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(
-                  remaining >= 0 ? 'Remaining' : 'Over',
-                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                        color: scheme.onTertiaryContainer,
-                      ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  '${remaining.abs().round()} kcal',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        color: scheme.onTertiaryContainer,
-                        fontWeight: FontWeight.bold,
-                      ),
-                ),
-              ],
+              '${todayCalories.round()} eaten · ${remaining.abs().round()} kcal ${remaining >= 0 ? 'left' : 'over'}',
+              style: textTheme.bodySmall?.copyWith(color: onColor),
             ),
           ],
         ),
@@ -617,147 +369,110 @@ class _LoggedIntakeCard extends StatelessWidget {
 
 class _WeightProgress extends StatelessWidget {
   final double currentWeightKg;
-  final double? targetWeightKg;
+  final double targetWeightKg;
+  final double? weeklyChangeKg;
   final UnitSystem unitSystem;
 
   const _WeightProgress({
     required this.currentWeightKg,
+    required this.targetWeightKg,
+    required this.weeklyChangeKg,
     required this.unitSystem,
-    this.targetWeightKg,
   });
 
   @override
   Widget build(BuildContext context) {
-    final target = targetWeightKg;
-    if (target == null) return const SizedBox.shrink();
-
-    final delta = target - currentWeightKg;
+    final delta = targetWeightKg - currentWeightKg;
     final scheme = Theme.of(context).colorScheme;
     final deltaText = Units.formatWeight(delta.abs(), unitSystem);
+    final weekly = weeklyChangeKg;
+    final weeks = weekly == null || weekly <= 0 ? null : (delta.abs() / weekly).ceil();
 
     final message = delta.abs() < 0.1
         ? "You're at your target weight"
-        : delta < 0
-            ? '$deltaText to lose'
-            : '$deltaText to gain';
+        : '${delta < 0 ? '$deltaText to lose' : '$deltaText to gain'}'
+            '${weeks != null ? ' · about $weeks ${weeks == 1 ? 'week' : 'weeks'} at this pace' : ''}';
 
     return Row(
       children: [
-        Icon(
-          delta < 0 ? Icons.trending_down : Icons.trending_up,
-          color: scheme.primary,
-          size: 20,
-        ),
+        Icon(delta < 0 ? Icons.trending_down : Icons.trending_up, color: scheme.primary, size: 20),
         const SizedBox(width: 8),
-        Text(message, style: Theme.of(context).textTheme.bodyMedium),
+        Expanded(child: Text(message, style: Theme.of(context).textTheme.bodyMedium)),
       ],
     );
   }
 }
 
-String _activitySourceLabel({
-  required String activityLabel,
-  required bool hasHealthData,
-  required bool hasPreciseActivity,
-  required bool hasInitialActivityFallback,
-  required int sessionsLast7Days,
-}) {
-  if (hasHealthData) return '$activityLabel · from your measured activity';
-  if (hasPreciseActivity) return '$activityLabel · from your job & exercise answers';
-  if (hasInitialActivityFallback) return '$activityLabel · your reported activity level';
-  final workoutWord = sessionsLast7Days == 1 ? 'workout' : 'workouts';
-  return '$activityLabel · $sessionsLast7Days $workoutWord in the last 7 days';
-}
+/// BMR → formula estimate → measured-from-logs → blended maintenance, one
+/// row each, plus the "learn from my logs" switch.
+class _CalculationCard extends StatelessWidget {
+  final UserProfile profile;
+  final DailyTarget target;
+  final UnitSystem unitSystem;
 
-/// Reference material collapsed by default: the raw BMR/TDEE numbers behind
-/// today's target, plus the opt-in "Precise calorie tracking" questionnaire
-/// — kept out of the main Goal/Target-weight flow so turning it on doesn't
-/// visually take over the screen. Starts expanded once the user has
-/// actually turned precision on, since at that point it's no longer purely
-/// background reading.
-class _CalculationDetails extends StatelessWidget {
-  final double bmr;
-  final String activityLabel;
-  final double tdeeLow;
-  final double tdeeHigh;
-  final bool preciseModeEnabled;
-  final JobActivityLevel? jobActivityLevel;
-  final int? exerciseDaysPerWeek;
-  final ExerciseIntensity? exerciseIntensity;
-  final ValueChanged<bool> onPreciseModeEnabledChanged;
-  final ValueChanged<JobActivityLevel> onJobActivityLevelChanged;
-  final ValueChanged<int> onExerciseDaysPerWeekChanged;
-  final ValueChanged<ExerciseIntensity> onExerciseIntensityChanged;
-
-  const _CalculationDetails({
-    required this.bmr,
-    required this.activityLabel,
-    required this.tdeeLow,
-    required this.tdeeHigh,
-    required this.preciseModeEnabled,
-    required this.jobActivityLevel,
-    required this.exerciseDaysPerWeek,
-    required this.exerciseIntensity,
-    required this.onPreciseModeEnabledChanged,
-    required this.onJobActivityLevelChanged,
-    required this.onExerciseDaysPerWeekChanged,
-    required this.onExerciseIntensityChanged,
-  });
+  const _CalculationCard({required this.profile, required this.target, required this.unitSystem});
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    final measured = target.measured;
+    final formula = target.formula;
 
     return Card(
-      clipBehavior: Clip.antiAlias,
-      child: Theme(
-        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-        child: ExpansionTile(
-          initiallyExpanded: preciseModeEnabled,
-          title: Text('How we calculated this', style: Theme.of(context).textTheme.titleMedium),
-          subtitle: Text(
-            '${bmr.round()} kcal BMR · $activityLabel',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: scheme.onSurfaceVariant,
-                ),
-          ),
-          childrenPadding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Text('Estimated maintenance', style: Theme.of(context).textTheme.labelLarge),
+            _CalcRow(
+              title: 'Resting burn (BMR)',
+              value: formatKcal(formula.bmr),
+              detail: 'Mifflin-St Jeor · ${Units.formatWeight(target.weightKg, unitSystem)}, '
+                  '${profile.heightCm.round()} cm, ${profile.age} y',
             ),
-            const SizedBox(height: 4),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                formatCalorieRange(tdeeLow, tdeeHigh),
-                style: Theme.of(context).textTheme.titleLarge,
+            _CalcRow(
+              title: 'Formula estimate',
+              value: formatKcal(formula.tdee),
+              detail: '${formula.source.label} · ${formula.detail}',
+            ),
+            _CalcRow(
+              title: 'Measured from your logs',
+              value: measured == null ? '—' : formatKcal(measured.tdee),
+              detail: measured == null
+                  ? target.measuredStatus.missing ?? ''
+                  : '${measured.avgIntakeKcal.round()} kcal/day eaten over ${measured.loggedDays} days, '
+                      'weight ${measured.weightChangeKgPerWeek <= 0 ? '−' : '+'}'
+                      '${Units.formatWeight(measured.weightChangeKgPerWeek.abs(), unitSystem, decimals: 2)}/week',
+            ),
+            const Divider(indent: 16, endIndent: 16),
+            _CalcRow(
+              title: 'Your maintenance',
+              value: formatKcal(target.maintenanceKcal),
+              detail: target.usesMeasured
+                  ? '${(target.measuredWeight * 100).round()}% your logs, '
+                      '${((1 - target.measuredWeight) * 100).round()}% formula — trusted more as you log more'
+                  : 'Formula only',
+              emphasize: true,
+            ),
+            SwitchListTile(
+              title: const Text('Learn from my logs'),
+              subtitle: const Text(
+                'Adjust to your real metabolism using what you eat and how your weight moves',
               ),
+              value: profile.useMeasuredTdee,
+              onChanged: (value) => context
+                  .read<ProfileRepository>()
+                  .saveProfile(profile.copyWith(useMeasuredTdee: value)),
             ),
-            const SizedBox(height: 2),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                (tdeeHigh - tdeeLow).abs() < 0.5
-                    ? "Picked from your job & exercise answers, not a ballpark range."
-                    : "A ballpark — like the calculators online, not a lab measurement.",
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: scheme.onSurfaceVariant,
-                    ),
+            if (measured == null && profile.useMeasuredTdee)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                child: Text(
+                  'Needs 2+ weeks of food logs and 3+ weigh-ins to kick in.',
+                  style: textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+                ),
               ),
-            ),
-            const Divider(height: 28),
-            _PreciseActivitySection(
-              enabled: preciseModeEnabled,
-              job: jobActivityLevel,
-              exerciseDaysPerWeek: exerciseDaysPerWeek,
-              intensity: exerciseIntensity,
-              onEnabledChanged: onPreciseModeEnabledChanged,
-              onJobChanged: onJobActivityLevelChanged,
-              onExerciseDaysPerWeekChanged: onExerciseDaysPerWeekChanged,
-              onIntensityChanged: onExerciseIntensityChanged,
-            ),
           ],
         ),
       ),
@@ -765,111 +480,206 @@ class _CalculationDetails extends StatelessWidget {
   }
 }
 
-/// Opt-in questionnaire that picks one exact tier off the standard 6-level
-/// activity table instead of leaving the default +/-150 kcal ballpark range
-/// — see [PreciseActivityInput]. Saves immediately on change (like a
-/// settings toggle), independent of the "Save goal" button.
-class _PreciseActivitySection extends StatelessWidget {
-  final bool enabled;
-  final JobActivityLevel? job;
-  final int? exerciseDaysPerWeek;
-  final ExerciseIntensity? intensity;
-  final ValueChanged<bool> onEnabledChanged;
-  final ValueChanged<JobActivityLevel> onJobChanged;
-  final ValueChanged<int> onExerciseDaysPerWeekChanged;
-  final ValueChanged<ExerciseIntensity> onIntensityChanged;
+class _CalcRow extends StatelessWidget {
+  final String title;
+  final String value;
+  final String detail;
+  final bool emphasize;
 
-  const _PreciseActivitySection({
-    required this.enabled,
-    required this.job,
-    required this.exerciseDaysPerWeek,
-    required this.intensity,
-    required this.onEnabledChanged,
-    required this.onJobChanged,
-    required this.onExerciseDaysPerWeekChanged,
-    required this.onIntensityChanged,
-  });
+  const _CalcRow({required this.title, required this.value, required this.detail, this.emphasize = false});
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final days = exerciseDaysPerWeek ?? 0;
+    final textTheme = Theme.of(context).textTheme;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(child: Text(title, style: emphasize ? textTheme.titleSmall : textTheme.bodyLarge)),
+              Text(value, style: emphasize ? textTheme.titleMedium : textTheme.titleSmall),
+            ],
+          ),
+          if (detail.isNotEmpty) ...[
+            const SizedBox(height: 2),
+            Text(detail, style: textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
+          ],
+        ],
+      ),
+    );
+  }
+}
 
+/// The activity questions behind the formula estimate. Saves immediately on
+/// change, like a settings toggle — these describe the person, not the goal.
+class _ActivitySection extends StatelessWidget {
+  final UserProfile profile;
+
+  const _ActivitySection({required this.profile});
+
+  void _save(BuildContext context, UserProfile updated) =>
+      context.read<ProfileRepository>().saveProfile(updated);
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    final sessions = context.watch<TrainingRepository>().sessions;
+    final fourWeeksAgo = DateTime.now().subtract(const Duration(days: 28));
+    final recent = sessions.where((s) => s.date.isAfter(fourWeeksAgo)).toList();
+    final loggedMinutes = typicalLoggedSessionMinutes(recent);
+    final loggedPerWeek = recent.length / 4;
+
+    final enabled = profile.preciseCalorieTrackingEnabled;
+    final days = profile.exerciseDaysPerWeek ?? 0;
+    final minutes = profile.exerciseMinutesPerSession ?? PreciseActivityInput.defaultMinutesPerSession;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Use my activity answers'),
+              subtitle: Text(
+                enabled
+                    ? 'Instead of estimating from the workouts you log here'
+                    : 'Off — estimating from your logged workouts '
+                        '(${loggedPerWeek.toStringAsFixed(1)}/week, ~$loggedMinutes min)',
+              ),
+              value: enabled,
+              onChanged: (value) => _save(context, profile.copyWith(preciseCalorieTrackingEnabled: value)),
+            ),
+            if (enabled) ...[
+              const SizedBox(height: 8),
+              Text('Daily activity outside workouts', style: textTheme.labelLarge),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: JobActivityLevel.values.map((level) {
+                  return ChoiceChip(
+                    label: Text(level.label),
+                    selected: profile.jobActivityLevel == level,
+                    onSelected: (_) => _save(context, profile.copyWith(jobActivityLevel: level)),
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 16),
+              _SliderRow(
+                label: 'Workouts per week',
+                format: (v) => '$v',
+                value: days,
+                min: 0,
+                max: 7,
+                divisions: 7,
+                onChanged: (v) => _save(context, profile.copyWith(exerciseDaysPerWeek: v)),
+              ),
+              _SliderRow(
+                label: 'Typical workout length',
+                format: (v) => '$v min',
+                value: minutes,
+                min: 15,
+                max: 180,
+                divisions: 11,
+                onChanged: (v) => _save(context, profile.copyWith(exerciseMinutesPerSession: v)),
+              ),
+              if (recent.isNotEmpty)
+                Text(
+                  'Your logged workouts: ${loggedPerWeek.toStringAsFixed(1)}/week, ~$loggedMinutes min each',
+                  style: textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+                ),
+              const SizedBox(height: 16),
+              Text('Typical intensity', style: textTheme.labelLarge),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                children: ExerciseIntensity.values.map((level) {
+                  return ChoiceChip(
+                    label: Text(level.label),
+                    selected: profile.exerciseIntensity == level,
+                    onSelected: (_) => _save(context, profile.copyWith(exerciseIntensity: level)),
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Light: easy circuits, walking · Moderate: normal lifting session · Hard: heavy lifting, running, sports',
+                style: textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+              ),
+              if (profile.jobActivityLevel == null || profile.exerciseIntensity == null) ...[
+                const SizedBox(height: 12),
+                Text(
+                  'Pick a daily activity and intensity to use these answers.',
+                  style: textTheme.bodySmall?.copyWith(color: scheme.error),
+                ),
+              ],
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Slider that tracks the drag locally and only reports the final value —
+/// every report is a database write.
+class _SliderRow extends StatefulWidget {
+  final String label;
+  final String Function(int value) format;
+  final int value;
+  final int min;
+  final int max;
+  final int divisions;
+  final ValueChanged<int> onChanged;
+
+  const _SliderRow({
+    required this.label,
+    required this.format,
+    required this.value,
+    required this.min,
+    required this.max,
+    required this.divisions,
+    required this.onChanged,
+  });
+
+  @override
+  State<_SliderRow> createState() => _SliderRowState();
+}
+
+class _SliderRowState extends State<_SliderRow> {
+  double? _dragValue;
+
+  @override
+  Widget build(BuildContext context) {
+    final value = (_dragValue ?? widget.value.toDouble()).clamp(widget.min.toDouble(), widget.max.toDouble());
+    final label = widget.format(value.round());
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        SwitchListTile(
-          contentPadding: EdgeInsets.zero,
-          title: const Text('Precise calorie tracking'),
-          subtitle: const Text(
-            'Answer a couple more questions to replace the range above with one exact number',
-          ),
-          value: enabled,
-          onChanged: onEnabledChanged,
-        ),
-        if (enabled) ...[
-          const SizedBox(height: 8),
-          Text('Daily activity', style: Theme.of(context).textTheme.labelLarge),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: JobActivityLevel.values.map((level) {
-              return ChoiceChip(
-                label: Text(level.label),
-                selected: job == level,
-                onSelected: (_) => onJobChanged(level),
-              );
-            }).toList(),
-          ),
-          const SizedBox(height: 16),
-          Text('Exercise days per week', style: Theme.of(context).textTheme.labelLarge),
-          const SizedBox(height: 4),
-          Row(
-            children: [
-              Expanded(
-                child: Slider(
-                  value: days.toDouble(),
-                  min: 0,
-                  max: 7,
-                  divisions: 7,
-                  label: '$days',
-                  onChanged: (value) => onExerciseDaysPerWeekChanged(value.round()),
-                ),
-              ),
-              SizedBox(
-                width: 24,
-                child: Text(
-                  '$days',
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.bodyMedium,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Text('Typical intensity', style: Theme.of(context).textTheme.labelLarge),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            children: ExerciseIntensity.values.map((level) {
-              return ChoiceChip(
-                label: Text(level.label),
-                selected: intensity == level,
-                onSelected: (_) => onIntensityChanged(level),
-              );
-            }).toList(),
-          ),
-          if (job == null || intensity == null) ...[
-            const SizedBox(height: 12),
-            Text(
-              'Pick a daily activity and intensity to use this instead of guessing from your logged workouts.',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: scheme.onSurfaceVariant,
-                  ),
-            ),
+        Row(
+          children: [
+            Expanded(child: Text(widget.label, style: Theme.of(context).textTheme.labelLarge)),
+            Text(label, style: Theme.of(context).textTheme.titleSmall),
           ],
-        ],
+        ),
+        Slider(
+          value: value,
+          min: widget.min.toDouble(),
+          max: widget.max.toDouble(),
+          divisions: widget.divisions,
+          label: label,
+          onChanged: (v) => setState(() => _dragValue = v),
+          onChangeEnd: (v) {
+            widget.onChanged(v.round());
+            setState(() => _dragValue = null);
+          },
+        ),
       ],
     );
   }

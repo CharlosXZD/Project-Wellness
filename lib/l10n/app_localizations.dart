@@ -769,6 +769,96 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Delete entry'**
   String get cycleDeleteEntry;
+
+  /// No description provided for @cycleNextPeriodIn.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =0{Period expected today} one{Next period in 1 day} other{Next period in {count} days}}'**
+  String cycleNextPeriodIn(int count);
+
+  /// No description provided for @cyclePeriodLate.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, one{Period is 1 day late} other{Period is {count} days late}}'**
+  String cyclePeriodLate(int count);
+
+  /// No description provided for @cycleExpectedOn.
+  ///
+  /// In en, this message translates to:
+  /// **'Expected {date}'**
+  String cycleExpectedOn(String date);
+
+  /// No description provided for @cycleOvulationEstimate.
+  ///
+  /// In en, this message translates to:
+  /// **'Estimated ovulation'**
+  String get cycleOvulationEstimate;
+
+  /// No description provided for @cycleFertileWindow.
+  ///
+  /// In en, this message translates to:
+  /// **'Fertile window'**
+  String get cycleFertileWindow;
+
+  /// No description provided for @cycleLengthLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Cycle length'**
+  String get cycleLengthLabel;
+
+  /// No description provided for @cycleLengthValue.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} days'**
+  String cycleLengthValue(int count);
+
+  /// No description provided for @cycleLengthLearned.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =0{Default until you log two periods} one{Learned from 1 cycle} other{Learned from your last {count} cycles}}'**
+  String cycleLengthLearned(int count);
+
+  /// No description provided for @cycleEstimateDisclaimer.
+  ///
+  /// In en, this message translates to:
+  /// **'Estimates only, based on your logged dates. Not suitable for contraception.'**
+  String get cycleEstimateDisclaimer;
+
+  /// No description provided for @cycleDuplicateTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Same period?'**
+  String get cycleDuplicateTitle;
+
+  /// No description provided for @cycleDuplicateContent.
+  ///
+  /// In en, this message translates to:
+  /// **'{date} is within a few days of a period start you already logged. Cycle estimates treat those as one period.'**
+  String cycleDuplicateContent(String date);
+
+  /// No description provided for @cycleLogAnyway.
+  ///
+  /// In en, this message translates to:
+  /// **'Log anyway'**
+  String get cycleLogAnyway;
+
+  /// No description provided for @cycleEntryDeleted.
+  ///
+  /// In en, this message translates to:
+  /// **'Period start removed'**
+  String get cycleEntryDeleted;
+
+  /// No description provided for @undo.
+  ///
+  /// In en, this message translates to:
+  /// **'Undo'**
+  String get undo;
+
+  /// No description provided for @cycleStaleData.
+  ///
+  /// In en, this message translates to:
+  /// **'Log your most recent period start to see where you are'**
+  String get cycleStaleData;
 }
 
 class _AppLocalizationsDelegate

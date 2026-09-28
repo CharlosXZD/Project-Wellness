@@ -117,5 +117,21 @@
   "cyclePhaseFollicular": "Folicular",
   "cyclePhaseOvulation": "Ovulación",
   "cyclePhaseLuteal": "Lútea",
-  "cycleDeleteEntry": "Eliminar registro"
+  "cycleDeleteEntry": "Eliminar registro",
+
+  "cycleNextPeriodIn": "{count, plural, =0{Periodo esperado hoy} one{Próximo periodo en 1 día} other{Próximo periodo en {count} días}}",
+  "cyclePeriodLate": "{count, plural, one{El periodo lleva 1 día de retraso} other{El periodo lleva {count} días de retraso}}",
+  "cycleExpectedOn": "Esperado el {date}",
+  "cycleOvulationEstimate": "Ovulación estimada",
+  "cycleFertileWindow": "Ventana fértil",
+  "cycleLengthLabel": "Duración del ciclo",
+  "cycleLengthValue": "{count} días",
+  "cycleLengthLearned": "{count, plural, =0{Valor por defecto hasta que registres dos periodos} one{Calculado a partir de 1 ciclo} other{Calculado a partir de tus últimos {count} ciclos}}",
+  "cycleEstimateDisclaimer": "Solo son estimaciones basadas en tus fechas registradas. No sirven como método anticonceptivo.",
+  "cycleDuplicateTitle": "¿El mismo periodo?",
+  "cycleDuplicateContent": "{date} está a pocos días de un inicio de periodo que ya registraste. Las estimaciones lo cuentan como un solo periodo.",
+  "cycleLogAnyway": "Registrar igual",
+  "cycleEntryDeleted": "Inicio de periodo eliminado",
+  "undo": "Deshacer",
+  "cycleStaleData": "Registra tu inicio de periodo más reciente para ver en qué punto estás"
 }

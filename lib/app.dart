@@ -11,6 +11,7 @@ import 'features/security/app_lock_screen.dart';
 import 'l10n/app_localizations.dart';
 import 'repositories/active_workout_repository.dart';
 import 'repositories/cycle_repository.dart';
+import 'repositories/health_activity_repository.dart';
 import 'repositories/medals_repository.dart';
 import 'repositories/nutrition_repository.dart';
 import 'repositories/profile_repository.dart';
@@ -32,6 +33,7 @@ class ProjectWellnessApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => CycleRepository()..load()),
         ChangeNotifierProvider(create: (_) => MedalsRepository()..load()),
         ChangeNotifierProvider(create: (_) => ActiveWorkoutRepository()),
+        ChangeNotifierProvider(create: (_) => HealthActivityRepository()),
       ],
       child: const _ThemedApp(),
     );
@@ -160,6 +162,10 @@ class _AppRootState extends State<AppRoot> {
   Widget build(BuildContext context) {
     final profileRepo = context.watch<ProfileRepository>();
     final trainingRepo = context.watch<TrainingRepository>();
+    final healthSyncEnabled = context.watch<SettingsRepository>().healthSyncEnabled;
+    unawaited(context
+        .read<HealthActivityRepository>()
+        .refreshIfNeeded(syncEnabled: healthSyncEnabled));
 
     // Fire-and-forget, once training data is available to resolve each
     // draft's exercise. Doesn't gate the first frame — the persistent

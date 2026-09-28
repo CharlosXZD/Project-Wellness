@@ -19,6 +19,7 @@ Future<Object?> showAddFoodSheet(
   double? initialCarbs,
   double? initialFat,
   bool pickerMode = false,
+  DateTime? date,
 }) {
   return showModalBottomSheet<Object?>(
     context: context,
@@ -34,6 +35,7 @@ Future<Object?> showAddFoodSheet(
       initialCarbs: initialCarbs,
       initialFat: initialFat,
       pickerMode: pickerMode,
+      date: date,
     ),
   );
 }
@@ -46,6 +48,10 @@ class _AddFoodSheet extends StatefulWidget {
   final double? initialFat;
   final bool pickerMode;
 
+  /// Which day to log onto — null means now. A past day keeps the current
+  /// time of day so the entry sorts naturally within it.
+  final DateTime? date;
+
   const _AddFoodSheet({
     this.initialName,
     this.initialCalories,
@@ -53,6 +59,7 @@ class _AddFoodSheet extends StatefulWidget {
     this.initialCarbs,
     this.initialFat,
     required this.pickerMode,
+    this.date,
   });
 
   @override
@@ -134,9 +141,11 @@ class _AddFoodSheetState extends State<_AddFoodSheet> {
       return;
     }
 
+    final now = DateTime.now();
+    final day = widget.date;
     final entry = FoodEntry(
       id: const Uuid().v4(),
-      date: DateTime.now(),
+      date: day == null ? now : DateTime(day.year, day.month, day.day, now.hour, now.minute),
       mealType: _mealType,
       name: name,
       calories: calories,

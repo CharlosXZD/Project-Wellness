@@ -5,7 +5,6 @@ import 'package:home_widget/home_widget.dart';
 
 import '../../repositories/nutrition_repository.dart';
 import '../../repositories/profile_repository.dart';
-import '../../repositories/settings_repository.dart';
 import '../../repositories/training_repository.dart';
 import '../health/health_service.dart';
 import '../nutrition/target_calories.dart';
@@ -28,7 +27,8 @@ class HomeWidgetService {
     required NutritionRepository nutrition,
     required ProfileRepository profile,
     required TrainingRepository training,
-    required SettingsRepository settings,
+    HealthActivitySummary? health,
+    int? cycleAdjustmentKcal,
   }) async {
     if (!Platform.isAndroid) return;
 
@@ -49,16 +49,16 @@ class HomeWidgetService {
         fat += entry.fatG;
       }
 
-      final healthActivity = settings.healthSyncEnabled
-          ? await HealthService.instance.averageDailyActivity()
-          : null;
-
-      final target = computeTargetCalories(
+      // Same inputs as every in-app screen (see `watchDailyTarget`), so the
+      // widget can't show a different goal than the app does.
+      final target = computeDailyTarget(
         profile: profile.profile,
         goal: nutrition.goal,
-        currentWeightKg: training.latestWeightKg,
+        weightEntries: training.weightEntries,
         sessions: training.sessions,
-        avgActiveEnergyKcal: healthActivity?.avgActiveEnergyKcal,
+        foodEntries: nutrition.entries,
+        health: health,
+        cycleAdjustmentKcal: cycleAdjustmentKcal,
       );
 
       await HomeWidget.saveWidgetData<int>('calories_logged', calories.round());
@@ -67,7 +67,7 @@ class HomeWidgetService {
       await HomeWidget.saveWidgetData<int>('fat_g', fat.round());
       await HomeWidget.saveWidgetData<int>(
         'calories_target',
-        target == null ? 0 : ((target.low + target.high) / 2).round(),
+        target == null ? 0 : target.kcal.round(),
       );
 
       await HomeWidget.updateWidget(androidName: _androidProviderName);

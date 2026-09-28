@@ -386,4 +386,83 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get cycleDeleteEntry => 'Delete entry';
+
+  @override
+  String cycleNextPeriodIn(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Next period in $count days',
+      one: 'Next period in 1 day',
+      zero: 'Period expected today',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String cyclePeriodLate(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Period is $count days late',
+      one: 'Period is 1 day late',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String cycleExpectedOn(String date) {
+    return 'Expected $date';
+  }
+
+  @override
+  String get cycleOvulationEstimate => 'Estimated ovulation';
+
+  @override
+  String get cycleFertileWindow => 'Fertile window';
+
+  @override
+  String get cycleLengthLabel => 'Cycle length';
+
+  @override
+  String cycleLengthValue(int count) {
+    return '$count days';
+  }
+
+  @override
+  String cycleLengthLearned(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Learned from your last $count cycles',
+      one: 'Learned from 1 cycle',
+      zero: 'Default until you log two periods',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get cycleEstimateDisclaimer =>
+      'Estimates only, based on your logged dates. Not suitable for contraception.';
+
+  @override
+  String get cycleDuplicateTitle => 'Same period?';
+
+  @override
+  String cycleDuplicateContent(String date) {
+    return '$date is within a few days of a period start you already logged. Cycle estimates treat those as one period.';
+  }
+
+  @override
+  String get cycleLogAnyway => 'Log anyway';
+
+  @override
+  String get cycleEntryDeleted => 'Period start removed';
+
+  @override
+  String get undo => 'Undo';
+
+  @override
+  String get cycleStaleData =>
+      'Log your most recent period start to see where you are';
 }

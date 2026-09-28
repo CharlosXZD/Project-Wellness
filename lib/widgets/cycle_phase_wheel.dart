@@ -15,7 +15,7 @@ class CyclePhaseWheel extends StatelessWidget {
 
   const CyclePhaseWheel({super.key, required this.periodStarts, this.now});
 
-  static const _phaseColors = {
+  static const phaseColors = {
     CyclePhase.menstrual: Color(0xFFE0574F),
     CyclePhase.follicular: Color(0xFF5AA9C7),
     CyclePhase.ovulation: Color(0xFF8BA83F),
@@ -24,26 +24,42 @@ class CyclePhaseWheel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final position = currentCyclePosition(periodStarts, now: now);
+    final status = currentCycleStatus(periodStarts, now: now);
     final scheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
 
     return AspectRatio(
       aspectRatio: 1,
       child: CustomPaint(
         painter: _CyclePhaseWheelPainter(
-          cycleLength: position?.cycleLength ?? 28,
-          currentDay: position?.dayInCycle,
-          phaseColors: _phaseColors,
+          cycleLength: status?.cycleLength ?? 28,
+          // A late period pins the marker to the last day rather than
+          // wrapping round to day 1.
+          currentDay: status?.dayInCycle.clamp(0, status.cycleLength - 1),
+          phaseColors: phaseColors,
           placeholderColor: scheme.outlineVariant,
           labelColor: scheme.onSurfaceVariant,
           textDirection: Directionality.of(context),
         ),
         child: Center(
-          child: position == null
+          child: status == null
               ? Icon(Icons.calendar_today_outlined, color: scheme.onSurfaceVariant, size: 28)
-              : Text(
-                  '${position.dayInCycle + 1}',
-                  style: Theme.of(context).textTheme.headlineMedium,
+              : Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      status.isLate ? 'Late' : 'Day',
+                      style: textTheme.labelMedium?.copyWith(color: scheme.onSurfaceVariant),
+                    ),
+                    Text(
+                      status.isLate ? '+${status.daysLate}' : '${status.dayInCycle + 1}',
+                      style: textTheme.displaySmall?.copyWith(fontWeight: FontWeight.w700),
+                    ),
+                    Text(
+                      'of ${status.cycleLength}',
+                      style: textTheme.labelMedium?.copyWith(color: scheme.onSurfaceVariant),
+                    ),
+                  ],
                 ),
         ),
       ),

@@ -1,4 +1,3 @@
-import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -15,6 +14,7 @@ import '../../widgets/action_card.dart';
 import '../../widgets/activity_week_strip.dart';
 import '../../widgets/import_code_dialog.dart';
 import '../../widgets/share_code_sheet.dart';
+import '../calendar/calendar_screen.dart';
 import 'day_templates_screen.dart';
 import 'log_weight_sheet.dart';
 import 'session_detail_screen.dart';
@@ -67,6 +67,10 @@ class TrainingScreen extends StatelessWidget {
         return;
       }
     }
+    // Rest day — show it on the calendar rather than doing nothing.
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => CalendarScreen(initialDate: date)),
+    );
   }
 
   @override
@@ -107,6 +111,9 @@ class TrainingScreen extends StatelessWidget {
                   days: weekDays,
                   primaryColor: AppColors.training,
                   onDayTap: (date) => _openDay(context, repo.sessions, date),
+                  onOpenCalendar: () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const CalendarScreen()),
+                  ),
                 ),
                 const SizedBox(height: 16),
                 _WeightCard(repo: repo),
@@ -186,6 +193,24 @@ class _WeightCard extends StatelessWidget {
     final points =
         buildWeightSeries(profile: profile, weightEntries: repo.weightEntries);
     final scheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
+    final today = DateUtils.dateOnly(DateTime.now());
+    final rangeStart = today.subtract(const Duration(days: 89));
+    final before = points.where((p) => p.date.isBefore(rangeStart)).toList();
+    final chartPoints = [
+      if (before.isNotEmpty) before.last,
+      ...points.where((p) => !p.date.isBefore(rangeStart)),
+    ];
+    final monthAgo = today.subtract(const Duration(days: 30));
+    // Change vs. the last weigh-in from 30+ days ago (or the first one, for
+    // a newer account).
+    final olderPoints = points.where((p) => !p.date.isAfter(monthAgo)).toList();
+    final reference = olderPoints.isNotEmpty ? olderPoints.last : (points.isEmpty ? null : points.first);
+    final latest = points.isEmpty ? null : points.last;
+    final monthDelta = latest == null || reference == null || identical(reference, latest)
+        ? null
+        : latest.weightKg - reference.weightKg;
 
     return Card(
       clipBehavior: Clip.antiAlias,
@@ -207,28 +232,23 @@ class _WeightCard extends StatelessWidget {
                       children: [
                         Row(
                           children: [
-                            Text(
-                              'Weight',
-                              style: Theme.of(context).textTheme.titleMedium,
-                            ),
-                            const SizedBox(width: 6),
-                            Icon(
-                              Icons.chevron_right,
-                              size: 18,
-                              color: scheme.onSurfaceVariant,
-                            ),
+                            Text('Weight', style: textTheme.titleMedium),
+                            const SizedBox(width: 4),
+                            Icon(Icons.chevron_right, size: 18, color: scheme.onSurfaceVariant),
                           ],
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          repo.latestWeightKg != null
-                              ? Units.formatWeight(
-                                  repo.latestWeightKg!, unitSystem)
-                              : profile != null
-                                  ? '${Units.formatWeight(profile.weightKg, unitSystem)} (starting)'
-                                  : 'No entries yet',
-                          style: Theme.of(context).textTheme.headlineSmall,
+                          latest == null
+                              ? 'No entries yet'
+                              : Units.formatWeight(latest.weightKg, unitSystem),
+                          style: textTheme.headlineSmall,
                         ),
+                        if (monthDelta != null)
+                          Text(
+                            '${monthDelta <= 0 ? '−' : '+'}${Units.formatWeight(monthDelta.abs(), unitSystem)} in 30 days',
+                            style: textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+                          ),
                       ],
                     ),
                   ),
@@ -239,38 +259,15 @@ class _WeightCard extends StatelessWidget {
                   ),
                 ],
               ),
-              if (points.length >= 2) ...[
-                const SizedBox(height: 20),
+              if (chartPoints.length >= 2) ...[
+                const SizedBox(height: 16),
                 SizedBox(
-                  height: 140,
-                  child: LineChart(
-                    LineChartData(
-                      gridData: const FlGridData(show: false),
-                      titlesData: const FlTitlesData(show: false),
-                      borderData: FlBorderData(show: false),
-                      lineTouchData: const LineTouchData(enabled: false),
-                      lineBarsData: [
-                        LineChartBarData(
-                          spots: [
-                            for (var i = 0; i < points.length; i++)
-                              FlSpot(
-                                i.toDouble(),
-                                unitSystem == UnitSystem.metric
-                                    ? points[i].weightKg
-                                    : Units.kgToLbs(points[i].weightKg),
-                              ),
-                          ],
-                          isCurved: true,
-                          color: scheme.primary,
-                          barWidth: 3,
-                          dotData: const FlDotData(show: false),
-                          belowBarData: BarAreaData(
-                            show: true,
-                            color: scheme.primary.withValues(alpha: 0.12),
-                          ),
-                        ),
-                      ],
-                    ),
+                  height: 96,
+                  child: WeightTrendChart(
+                    points: chartPoints,
+                    rangeStart: rangeStart,
+                    unitSystem: unitSystem,
+                    compact: true,
                   ),
                 ),
               ],

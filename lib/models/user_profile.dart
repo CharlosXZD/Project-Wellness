@@ -36,6 +36,18 @@ class UserProfile {
   final int? exerciseDaysPerWeek;
   final ExerciseIntensity? exerciseIntensity;
 
+  /// Typical length of one workout, in minutes — how much exercise energy
+  /// each of [exerciseDaysPerWeek] adds. Null means "not answered yet",
+  /// which falls back to a standard 60-minute session.
+  final int? exerciseMinutesPerSession;
+
+  /// Whether the daily calorie target should learn from the user's own
+  /// logged intake vs. weight trend once there's enough of both (see
+  /// `measureTdeeFromLogs`). On by default — it's the only signal that
+  /// reflects this person's actual metabolism instead of a population
+  /// average.
+  final bool useMeasuredTdee;
+
   /// Whether the "are we missing your workouts?" nudge has already been
   /// dismissed, so it doesn't keep reappearing.
   final bool workoutLoggingNudgeDismissed;
@@ -52,6 +64,8 @@ class UserProfile {
     this.jobActivityLevel,
     this.exerciseDaysPerWeek,
     this.exerciseIntensity,
+    this.exerciseMinutesPerSession,
+    this.useMeasuredTdee = true,
     this.workoutLoggingNudgeDismissed = false,
   });
 
@@ -75,7 +89,12 @@ class UserProfile {
     final days = exerciseDaysPerWeek;
     final intensity = exerciseIntensity;
     if (job == null || days == null || intensity == null) return null;
-    return PreciseActivityInput(job: job, exerciseDaysPerWeek: days, intensity: intensity);
+    return PreciseActivityInput(
+      job: job,
+      exerciseDaysPerWeek: days,
+      intensity: intensity,
+      minutesPerSession: exerciseMinutesPerSession ?? PreciseActivityInput.defaultMinutesPerSession,
+    );
   }
 
   UserProfile copyWith({
@@ -89,6 +108,8 @@ class UserProfile {
     JobActivityLevel? jobActivityLevel,
     int? exerciseDaysPerWeek,
     ExerciseIntensity? exerciseIntensity,
+    int? exerciseMinutesPerSession,
+    bool? useMeasuredTdee,
     bool? workoutLoggingNudgeDismissed,
   }) {
     return UserProfile(
@@ -104,6 +125,8 @@ class UserProfile {
       jobActivityLevel: jobActivityLevel ?? this.jobActivityLevel,
       exerciseDaysPerWeek: exerciseDaysPerWeek ?? this.exerciseDaysPerWeek,
       exerciseIntensity: exerciseIntensity ?? this.exerciseIntensity,
+      exerciseMinutesPerSession: exerciseMinutesPerSession ?? this.exerciseMinutesPerSession,
+      useMeasuredTdee: useMeasuredTdee ?? this.useMeasuredTdee,
       workoutLoggingNudgeDismissed:
           workoutLoggingNudgeDismissed ?? this.workoutLoggingNudgeDismissed,
     );
@@ -124,6 +147,8 @@ class UserProfile {
       'job_activity_level': jobActivityLevel?.name,
       'exercise_days_per_week': exerciseDaysPerWeek,
       'exercise_intensity': exerciseIntensity?.name,
+      'exercise_minutes_per_session': exerciseMinutesPerSession,
+      'use_measured_tdee': useMeasuredTdee ? 1 : 0,
       'workout_nudge_dismissed': workoutLoggingNudgeDismissed ? 1 : 0,
     };
   }
@@ -155,6 +180,9 @@ class UserProfile {
       exerciseIntensity: map['exercise_intensity'] == null
           ? null
           : ExerciseIntensity.values.firstWhere((e) => e.name == map['exercise_intensity']),
+      exerciseMinutesPerSession: (map['exercise_minutes_per_session'] as num?)?.toInt(),
+      // Missing column (an older backup) means the default: on.
+      useMeasuredTdee: (map['use_measured_tdee'] as num?) != 0,
       workoutLoggingNudgeDismissed: (map['workout_nudge_dismissed'] as num?) == 1,
     );
   }

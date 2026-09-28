@@ -4,46 +4,73 @@ import 'package:provider/provider.dart';
 
 import '../../models/food_entry.dart';
 import '../../repositories/nutrition_repository.dart';
+import '../../widgets/macro_bar.dart';
+import 'add_food_sheet.dart';
 import 'food_entry_detail_sheet.dart';
 
-/// Read-only view of a single past day's food log — what `nutrition_screen`
-/// shows inline for *today*, parameterized to any date. Reached by tapping
-/// a day on the nutrition week strip.
-class NutritionDayScreen extends StatelessWidget {
+/// One day's food log — reached from the week strip or the calendar. Step
+/// between days with the arrows, tap an entry to fix/move/delete it, or add
+/// something that was forgotten on the day.
+class NutritionDayScreen extends StatefulWidget {
   final DateTime date;
 
   const NutritionDayScreen({super.key, required this.date});
 
   @override
+  State<NutritionDayScreen> createState() => _NutritionDayScreenState();
+}
+
+class _NutritionDayScreenState extends State<NutritionDayScreen> {
+  late DateTime _date = DateUtils.dateOnly(widget.date);
+
+  bool get _isToday => DateUtils.isSameDay(_date, DateTime.now());
+
+  void _shift(int days) => setState(() => _date = _date.add(Duration(days: days)));
+
+  @override
   Widget build(BuildContext context) {
     final repo = context.watch<NutritionRepository>();
-    final entries = repo.entriesForDate(date);
-    final totals = repo.totalsForDate(date);
+    final entries = repo.entriesForDate(_date)..sort((a, b) => a.date.compareTo(b.date));
+    final totals = repo.totalsForDate(_date);
     final scheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
 
     return Scaffold(
-      appBar: AppBar(title: Text(DateFormat.yMMMd().format(date))),
+      appBar: AppBar(
+        title: Text(_isToday ? 'Today' : DateFormat.MMMEd().format(_date)),
+        actions: [
+          IconButton(
+            tooltip: 'Previous day',
+            icon: const Icon(Icons.chevron_left),
+            onPressed: () => _shift(-1),
+          ),
+          IconButton(
+            tooltip: 'Next day',
+            icon: const Icon(Icons.chevron_right),
+            onPressed: _isToday ? null : () => _shift(1),
+          ),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => showAddFoodSheet(context, date: _date),
+        icon: const Icon(Icons.add),
+        label: const Text('Add food'),
+      ),
       body: SafeArea(
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 96),
           children: [
             Card(
               child: Padding(
                 padding: const EdgeInsets.all(20),
-                child: Row(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _MacroStat(
-                        label: 'kcal',
-                        value: totals.calories.toStringAsFixed(0)),
-                    _MacroStat(
-                        label: 'Protein',
-                        value: '${totals.proteinG.toStringAsFixed(0)}g'),
-                    _MacroStat(
-                        label: 'Carbs',
-                        value: '${totals.carbsG.toStringAsFixed(0)}g'),
-                    _MacroStat(
-                        label: 'Fat',
-                        value: '${totals.fatG.toStringAsFixed(0)}g'),
+                    Text('${totals.calories.round()} kcal', style: textTheme.headlineSmall),
+                    const SizedBox(height: 16),
+                    MacroBar(proteinG: totals.proteinG, carbsG: totals.carbsG, fatG: totals.fatG),
+                    const SizedBox(height: 12),
+                    MacroLegendRow(proteinG: totals.proteinG, carbsG: totals.carbsG, fatG: totals.fatG),
                   ],
                 ),
               ),
@@ -54,20 +81,19 @@ class NutritionDayScreen extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(vertical: 32),
                 child: Column(
                   children: [
-                    Icon(Icons.restaurant,
-                        size: 40, color: scheme.onSurfaceVariant),
+                    Icon(Icons.restaurant, size: 40, color: scheme.onSurfaceVariant),
                     const SizedBox(height: 12),
                     Text(
                       'Nothing logged this day',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: scheme.onSurfaceVariant,
-                          ),
+                      style: textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
                     ),
                   ],
                 ),
               )
             else
-              for (final entry in entries) _DayFoodTile(entry: entry),
+              for (final meal in MealType.values)
+                if (entries.any((e) => e.mealType == meal))
+                  MealGroup(meal: meal, entries: entries.where((e) => e.mealType == meal).toList()),
           ],
         ),
       ),
@@ -75,23 +101,47 @@ class NutritionDayScreen extends StatelessWidget {
   }
 }
 
-class _MacroStat extends StatelessWidget {
-  final String label;
-  final String value;
+/// One meal's entries under a header with the meal's calorie subtotal —
+/// shared by this screen and the Nutrition screen's "Today" log.
+class MealGroup extends StatelessWidget {
+  final MealType meal;
+  final List<FoodEntry> entries;
 
-  const _MacroStat({required this.label, required this.value});
+  const MealGroup({super.key, required this.meal, required this.entries});
 
   @override
   Widget build(BuildContext context) {
-    return Expanded(
+    final scheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    final kcal = entries.fold(0.0, (sum, e) => sum + e.calories);
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(value, style: Theme.of(context).textTheme.titleMedium),
-          Text(
-            label,
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+          Padding(
+            padding: const EdgeInsets.fromLTRB(4, 0, 4, 8),
+            child: Row(
+              children: [
+                Expanded(child: Text(meal.label, style: textTheme.titleSmall)),
+                Text(
+                  '${kcal.round()} kcal',
+                  style: textTheme.labelLarge?.copyWith(color: scheme.onSurfaceVariant),
                 ),
+              ],
+            ),
+          ),
+          Card(
+            clipBehavior: Clip.antiAlias,
+            child: Column(
+              children: [
+                for (var i = 0; i < entries.length; i++) ...[
+                  if (i > 0) Divider(height: 1, indent: 16, endIndent: 16, color: scheme.outlineVariant.withValues(alpha: 0.5)),
+                  _FoodRow(entry: entries[i]),
+                ],
+              ],
+            ),
           ),
         ],
       ),
@@ -99,35 +149,26 @@ class _MacroStat extends StatelessWidget {
   }
 }
 
-class _DayFoodTile extends StatelessWidget {
+class _FoodRow extends StatelessWidget {
   final FoodEntry entry;
 
-  const _DayFoodTile({required this.entry});
+  const _FoodRow({required this.entry});
 
   @override
   Widget build(BuildContext context) {
     final grams = entry.grams;
-    final title = grams != null
-        ? '${entry.name} · ${grams.toStringAsFixed(0)}g'
-        : entry.name;
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Card(
-        child: ListTile(
-          contentPadding:
-              const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-          onTap: () => showFoodEntryDetailSheet(context, entry),
-          title: Text(title),
-          subtitle: Text(
-            '${entry.mealType.label} · P${entry.proteinG.toStringAsFixed(0)} '
-            'C${entry.carbsG.toStringAsFixed(0)} F${entry.fatG.toStringAsFixed(0)}',
-          ),
-          trailing: Text(
-            '${entry.calories.toStringAsFixed(0)} kcal',
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-        ),
+    return ListTile(
+      onTap: () => showFoodEntryDetailSheet(context, entry),
+      title: Text(entry.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+      subtitle: Text(
+        [
+          if (grams != null) '${grams.toStringAsFixed(0)} g',
+          'P ${entry.proteinG.toStringAsFixed(0)} · C ${entry.carbsG.toStringAsFixed(0)} · F ${entry.fatG.toStringAsFixed(0)}',
+        ].join(' · '),
+      ),
+      trailing: Text(
+        '${entry.calories.toStringAsFixed(0)} kcal',
+        style: Theme.of(context).textTheme.titleSmall,
       ),
     );
   }

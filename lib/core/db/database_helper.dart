@@ -29,7 +29,7 @@ class DatabaseHelper {
 
     return openDatabase(
       path,
-      version: 23,
+      version: 24,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
       onConfigure: (db) async {
@@ -54,7 +54,9 @@ class DatabaseHelper {
         job_activity_level TEXT,
         exercise_days_per_week INTEGER,
         exercise_intensity TEXT,
-        workout_nudge_dismissed INTEGER NOT NULL DEFAULT 0
+        workout_nudge_dismissed INTEGER NOT NULL DEFAULT 0,
+        exercise_minutes_per_session INTEGER,
+        use_measured_tdee INTEGER NOT NULL DEFAULT 1
       )
     ''');
 
@@ -373,6 +375,19 @@ class DatabaseHelper {
     }
     if (oldVersion < 23) {
       await _createScannedProductsTable(db);
+    }
+    if (oldVersion < 24) {
+      final profileColumns = await db.rawQuery('PRAGMA table_info(profile)');
+      final profileColumnNames = profileColumns.map((c) => c['name']).toSet();
+      if (!profileColumnNames.contains('exercise_minutes_per_session')) {
+        await db.execute(
+            'ALTER TABLE profile ADD COLUMN exercise_minutes_per_session INTEGER');
+      }
+      if (!profileColumnNames.contains('use_measured_tdee')) {
+        await db.execute(
+          'ALTER TABLE profile ADD COLUMN use_measured_tdee INTEGER NOT NULL DEFAULT 1',
+        );
+      }
     }
   }
 

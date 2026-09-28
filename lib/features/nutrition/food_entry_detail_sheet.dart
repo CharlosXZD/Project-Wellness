@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../core/training/medal_unlock.dart';
 import '../../models/food_entry.dart';
@@ -14,6 +16,7 @@ Future<void> showFoodEntryDetailSheet(BuildContext context, FoodEntry entry) {
   return showModalBottomSheet(
     context: context,
     isScrollControlled: true,
+    showDragHandle: true,
     backgroundColor: Theme.of(context).colorScheme.surface,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
@@ -48,6 +51,7 @@ class _FoodEntryDetailSheetState extends State<_FoodEntryDetailSheet> {
   late final _sodiumController =
       TextEditingController(text: widget.entry.sodiumMg?.toStringAsFixed(0) ?? '');
   late MealType _mealType = widget.entry.mealType;
+  late DateTime _date = widget.entry.date;
   bool _saving = false;
 
   @override
@@ -69,7 +73,7 @@ class _FoodEntryDetailSheetState extends State<_FoodEntryDetailSheet> {
 
     final updated = FoodEntry(
       id: widget.entry.id,
-      date: widget.entry.date,
+      date: _date,
       mealType: _mealType,
       name: _nameController.text.trim(),
       calories: double.tryParse(_caloriesController.text.trim()) ?? widget.entry.calories,
@@ -86,34 +90,67 @@ class _FoodEntryDetailSheetState extends State<_FoodEntryDetailSheet> {
     if (mounted) Navigator.of(context).pop();
   }
 
-  Future<void> _delete() async {
-    final confirmed = await showDialog<bool>(
+  /// Moves the entry to another day (logged on the wrong one), keeping its
+  /// time of day.
+  Future<void> _pickDate() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete this entry?'),
-        content: Text('This removes "${widget.entry.name}" from your log. This can\'t be undone.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: Theme.of(context).colorScheme.error,
-              foregroundColor: Theme.of(context).colorScheme.onError,
-            ),
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
+      initialDate: _date,
+      firstDate: DateTime(now.year - 5),
+      lastDate: now,
     );
-    if (confirmed != true || !mounted) return;
+    if (picked == null) return;
+    setState(() => _date = DateTime(picked.year, picked.month, picked.day, _date.hour, _date.minute));
+  }
 
-    await context.read<NutritionRepository>().deleteEntry(widget.entry.id);
+  /// Deletes straight away with an "Undo" snackbar, rather than a
+  /// "this can't be undone" dialog — a mistaken delete is one tap to fix.
+  Future<void> _delete() async {
+    final repo = context.read<NutritionRepository>();
+    final messenger = ScaffoldMessenger.of(context);
+    final entry = widget.entry;
+    await repo.deleteEntry(entry.id);
     if (!mounted) return;
     await reconcileMedalsAfterDeletion(context);
-    if (mounted) Navigator.of(context).pop();
+    if (!mounted) return;
+    Navigator.of(context).pop();
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text('Removed "${entry.name}"'),
+          action: SnackBarAction(label: 'Undo', onPressed: () => repo.addEntry(entry)),
+        ),
+      );
+  }
+
+  /// Logs a copy of this entry for right now — for the thing you eat every
+  /// day, without searching for it again.
+  Future<void> _logAgainToday() async {
+    final entry = widget.entry;
+    final messenger = ScaffoldMessenger.of(context);
+    await context.read<NutritionRepository>().addEntry(
+          FoodEntry(
+            id: const Uuid().v4(),
+            date: DateTime.now(),
+            mealType: entry.mealType,
+            name: entry.name,
+            calories: entry.calories,
+            proteinG: entry.proteinG,
+            carbsG: entry.carbsG,
+            fatG: entry.fatG,
+            fiberG: entry.fiberG,
+            sugarG: entry.sugarG,
+            sodiumMg: entry.sodiumMg,
+            grams: entry.grams,
+          ),
+        );
+    if (!mounted) return;
+    await evaluateMedalsAndNotify(context);
+    if (!mounted) return;
+    Navigator.of(context).pop();
+    messenger.showSnackBar(SnackBar(content: Text('Logged "${entry.name}" for today')));
   }
 
   @override
@@ -124,7 +161,6 @@ class _FoodEntryDetailSheetState extends State<_FoodEntryDetailSheet> {
       padding: EdgeInsets.only(
         left: 24,
         right: 24,
-        top: 24,
         bottom: MediaQuery.of(context).viewInsets.bottom + 24,
       ),
       child: SingleChildScrollView(
@@ -149,6 +185,20 @@ class _FoodEntryDetailSheetState extends State<_FoodEntryDetailSheet> {
               controller: _nameController,
               textCapitalization: TextCapitalization.words,
               decoration: const InputDecoration(labelText: 'Name'),
+            ),
+            const SizedBox(height: 12),
+            InkWell(
+              borderRadius: BorderRadius.circular(14),
+              onTap: _pickDate,
+              child: InputDecorator(
+                decoration: const InputDecoration(
+                  labelText: 'Day',
+                  suffixIcon: Icon(Icons.calendar_month_outlined),
+                ),
+                child: Text(
+                  DateUtils.isSameDay(_date, DateTime.now()) ? 'Today' : DateFormat.yMMMEd().format(_date),
+                ),
+              ),
             ),
             const SizedBox(height: 12),
             Wrap(
@@ -237,6 +287,17 @@ class _FoodEntryDetailSheetState extends State<_FoodEntryDetailSheet> {
                     : const Text('Save changes'),
               ),
             ),
+            if (!DateUtils.isSameDay(widget.entry.date, DateTime.now())) ...[
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: _saving ? null : _logAgainToday,
+                  icon: const Icon(Icons.replay),
+                  label: const Text('Log again today'),
+                ),
+              ),
+            ],
           ],
         ),
       ),

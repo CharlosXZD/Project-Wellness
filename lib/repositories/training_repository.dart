@@ -105,6 +105,29 @@ class TrainingRepository extends ChangeNotifier {
     }
   }
 
+  /// Corrects a logged weigh-in (a typo'd weight, the wrong day). Not
+  /// mirrored to Health — the original write there can't be edited.
+  Future<void> updateWeightEntry(WeightEntry entry) async {
+    final db = await DatabaseHelper.instance.database;
+    await db.update(
+      'weight_entries',
+      entry.toMap(),
+      where: 'id = ?',
+      whereArgs: [entry.id],
+    );
+    await load();
+  }
+
+  /// Puts back an entry removed by [deleteWeightEntry] — the "Undo" on the
+  /// delete snackbar. Skips the Health write [addWeightEntry] does, since
+  /// deleting never removed it from Health in the first place.
+  Future<void> restoreWeightEntry(WeightEntry entry) async {
+    final db = await DatabaseHelper.instance.database;
+    await db.insert('weight_entries', entry.toMap(),
+        conflictAlgorithm: ConflictAlgorithm.replace);
+    await load();
+  }
+
   Future<void> deleteWeightEntry(String id) async {
     final db = await DatabaseHelper.instance.database;
     await db.delete('weight_entries', where: 'id = ?', whereArgs: [id]);

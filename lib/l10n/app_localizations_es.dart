@@ -389,4 +389,83 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get cycleDeleteEntry => 'Eliminar registro';
+
+  @override
+  String cycleNextPeriodIn(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Próximo periodo en $count días',
+      one: 'Próximo periodo en 1 día',
+      zero: 'Periodo esperado hoy',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String cyclePeriodLate(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'El periodo lleva $count días de retraso',
+      one: 'El periodo lleva 1 día de retraso',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String cycleExpectedOn(String date) {
+    return 'Esperado el $date';
+  }
+
+  @override
+  String get cycleOvulationEstimate => 'Ovulación estimada';
+
+  @override
+  String get cycleFertileWindow => 'Ventana fértil';
+
+  @override
+  String get cycleLengthLabel => 'Duración del ciclo';
+
+  @override
+  String cycleLengthValue(int count) {
+    return '$count días';
+  }
+
+  @override
+  String cycleLengthLearned(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Calculado a partir de tus últimos $count ciclos',
+      one: 'Calculado a partir de 1 ciclo',
+      zero: 'Valor por defecto hasta que registres dos periodos',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get cycleEstimateDisclaimer =>
+      'Solo son estimaciones basadas en tus fechas registradas. No sirven como método anticonceptivo.';
+
+  @override
+  String get cycleDuplicateTitle => '¿El mismo periodo?';
+
+  @override
+  String cycleDuplicateContent(String date) {
+    return '$date está a pocos días de un inicio de periodo que ya registraste. Las estimaciones lo cuentan como un solo periodo.';
+  }
+
+  @override
+  String get cycleLogAnyway => 'Registrar igual';
+
+  @override
+  String get cycleEntryDeleted => 'Inicio de periodo eliminado';
+
+  @override
+  String get undo => 'Deshacer';
+
+  @override
+  String get cycleStaleData =>
+      'Registra tu inicio de periodo más reciente para ver en qué punto estás';
 }

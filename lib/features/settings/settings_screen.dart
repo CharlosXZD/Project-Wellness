@@ -10,6 +10,7 @@ import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../../core/health/health_service.dart';
+import '../../core/nutrition/target_calories.dart';
 import '../../core/security/app_lock_service.dart';
 import '../../core/sharing/backup_service.dart';
 import '../../core/sharing/share_codec.dart';
@@ -166,6 +167,7 @@ class SettingsScreen extends StatelessWidget {
     final l10n = AppLocalizations.of(context)!;
     final profile = context.watch<ProfileRepository>().profile;
     final unitSystem = context.watch<SettingsRepository>().unitSystem;
+    final weightEntries = context.watch<TrainingRepository>().weightEntries;
     final scheme = Theme.of(context).colorScheme;
     final healthServiceName =
         Platform.isIOS ? l10n.appleHealth : l10n.healthConnect;
@@ -183,7 +185,7 @@ class SettingsScreen extends StatelessWidget {
               const SizedBox(height: 4),
               Text(
                 '${profile.age} yrs · ${Units.formatHeight(profile.heightCm, unitSystem)} · '
-                '${Units.formatWeight(profile.weightKg, unitSystem)}',
+                '${Units.formatWeight(currentWeightKg(profile, weightEntries), unitSystem)}',
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       color: scheme.onSurfaceVariant,
                     ),

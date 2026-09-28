@@ -91,7 +91,8 @@ class Units {
 
   /// Parses a weight typed in [system]'s unit into canonical kg.
   static double? parseWeightToKg(String input, UnitSystem system) {
-    final value = double.tryParse(input.trim());
+    // Spanish-locale keyboards type a decimal comma ("95,5").
+    final value = double.tryParse(input.trim().replaceAll(',', '.'));
     if (value == null) return null;
     return system == UnitSystem.metric ? value : lbsToKg(value);
   }

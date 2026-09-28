@@ -141,5 +141,27 @@
   "cyclePhaseFollicular": "Follicular",
   "cyclePhaseOvulation": "Ovulation",
   "cyclePhaseLuteal": "Luteal",
-  "cycleDeleteEntry": "Delete entry"
+  "cycleDeleteEntry": "Delete entry",
+
+  "cycleNextPeriodIn": "{count, plural, =0{Period expected today} one{Next period in 1 day} other{Next period in {count} days}}",
+  "@cycleNextPeriodIn": { "placeholders": { "count": { "type": "int"} } },
+  "cyclePeriodLate": "{count, plural, one{Period is 1 day late} other{Period is {count} days late}}",
+  "@cyclePeriodLate": { "placeholders": { "count": { "type": "int"} } },
+  "cycleExpectedOn": "Expected {date}",
+  "@cycleExpectedOn": { "placeholders": { "date": { "type": "String"} } },
+  "cycleOvulationEstimate": "Estimated ovulation",
+  "cycleFertileWindow": "Fertile window",
+  "cycleLengthLabel": "Cycle length",
+  "cycleLengthValue": "{count} days",
+  "@cycleLengthValue": { "placeholders": { "count": { "type": "int"} } },
+  "cycleLengthLearned": "{count, plural, =0{Default until you log two periods} one{Learned from 1 cycle} other{Learned from your last {count} cycles}}",
+  "@cycleLengthLearned": { "placeholders": { "count": { "type": "int"} } },
+  "cycleEstimateDisclaimer": "Estimates only, based on your logged dates. Not suitable for contraception.",
+  "cycleDuplicateTitle": "Same period?",
+  "cycleDuplicateContent": "{date} is within a few days of a period start you already logged. Cycle estimates treat those as one period.",
+  "@cycleDuplicateContent": { "placeholders": { "date": { "type": "String"} } },
+  "cycleLogAnyway": "Log anyway",
+  "cycleEntryDeleted": "Period start removed",
+  "undo": "Undo",
+  "cycleStaleData": "Log your most recent period start to see where you are"
 }

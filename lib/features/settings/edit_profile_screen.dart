@@ -1,11 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import 'package:uuid/uuid.dart';
+
+import '../../core/nutrition/target_calories.dart';
 
 import '../../core/units/units.dart';
 import '../../models/user_profile.dart';
+import '../../models/weight_entry.dart';
 import '../../repositories/profile_repository.dart';
 import '../../repositories/settings_repository.dart';
+import '../../repositories/training_repository.dart';
 
 class EditProfileScreen extends StatefulWidget {
   const EditProfileScreen({super.key});
@@ -22,6 +27,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   late final TextEditingController _feetController;
   late final TextEditingController _inchesController;
   late DateTime _dateOfBirth;
+  late double _initialWeightKg;
   Sex? _sex;
   bool _saving = false;
 
@@ -31,20 +37,25 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     final profile = context.read<ProfileRepository>().profile!;
     final unitSystem = context.read<SettingsRepository>().unitSystem;
 
+    // "Weight" here is the *current* weight — the latest weigh-in — not the
+    // onboarding weight stored on the profile, which stays put as the
+    // starting point for progress charts.
+    _initialWeightKg = currentWeightKg(profile, context.read<TrainingRepository>().weightEntries);
+
     _nameController = TextEditingController(text: profile.name);
     _dateOfBirth = profile.dateOfBirth;
     _sex = profile.sex;
 
     if (unitSystem == UnitSystem.metric) {
       _weightController =
-          TextEditingController(text: profile.weightKg.toStringAsFixed(1));
+          TextEditingController(text: Units.formatNumber(_initialWeightKg));
       _heightController =
           TextEditingController(text: profile.heightCm.toStringAsFixed(0));
       _feetController = TextEditingController();
       _inchesController = TextEditingController();
     } else {
       _weightController = TextEditingController(
-        text: Units.kgToLbs(profile.weightKg).toStringAsFixed(1),
+        text: Units.formatNumber(Units.kgToLbs(_initialWeightKg)),
       );
       final totalInches = Units.cmToInches(profile.heightCm).round();
       _feetController = TextEditingController(text: '${totalInches ~/ 12}');
@@ -104,11 +115,19 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       name: _nameController.text.trim(),
       dateOfBirth: _dateOfBirth,
       heightCm: heightCm,
-      weightKg: weightKg,
       sex: _sex,
     );
 
     await profileRepo.saveProfile(updated);
+
+    // A changed weight is logged as today's weigh-in, so it shows up in
+    // weight history and drives every calorie calculation, instead of
+    // silently rewriting the starting weight.
+    if ((weightKg - _initialWeightKg).abs() >= 0.05 && mounted) {
+      await context.read<TrainingRepository>().addWeightEntry(
+            WeightEntry(id: const Uuid().v4(), date: DateTime.now(), weightKg: weightKg),
+          );
+    }
 
     if (mounted) Navigator.of(context).pop();
   }
@@ -168,10 +187,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                         keyboardType:
                             const TextInputType.numberWithOptions(decimal: true),
                         decoration: InputDecoration(
-                          labelText: 'Weight (${Units.weightUnitLabel(unitSystem)})',
+                          labelText: 'Current weight',
+                          suffixText: Units.weightUnitLabel(unitSystem),
+                          helperText: 'Saved as a weigh-in',
                         ),
                         validator: (value) {
-                          final weight = double.tryParse(value?.trim() ?? '');
+                          final weight = double.tryParse(value?.trim().replaceAll(',', '.') ?? '');
                           if (weight == null || weight <= 0) return 'Invalid';
                           return null;
                         },
