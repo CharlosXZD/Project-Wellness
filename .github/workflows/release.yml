@@ -13,6 +13,8 @@ name: Release APK
 on:
   push:
     tags: ['v*']
+  # Manual runs build the APK as a test but don't publish anything.
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -24,6 +26,7 @@ jobs:
       - uses: actions/checkout@v5
 
       - name: Check tag matches pubspec version
+        if: startsWith(github.ref, 'refs/tags/')
         run: |
           version=$(grep '^version:' pubspec.yaml | sed 's/version: *//; s/+.*//')
           if [ "v$version" != "$GITHUB_REF_NAME" ]; then
@@ -34,7 +37,7 @@ jobs:
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: '21'
 
       - uses: subosito/flutter-action@v2
         with:
@@ -61,19 +64,38 @@ jobs:
           PROPS
 
       # gradle.properties pins org.gradle.java.home to Android Studio's JDK
-      # on the Mac; use the runner's JDK 17 from setup-java instead.
+      # on the Mac; use the runner's JDK 21 from setup-java instead.
       - name: Use the runner's JDK
         run: sed -i '/^org.gradle.java.home=/d' android/gradle.properties
+
+      # Flutter's own Gradle plugin build resolves its Kotlin build tooling
+      # from the Gradle Plugin Portal only, which doesn't serve them; a Mac
+      # with a warm Gradle cache never notices. Let every build also look in
+      # Maven Central and Google.
+      - name: Add Maven Central for Gradle plugin resolution
+        run: |
+          mkdir -p ~/.gradle/init.d
+          cat > ~/.gradle/init.d/repositories.gradle <<'GRADLE'
+          beforeSettings { settings ->
+              settings.pluginManagement.repositories {
+                  gradlePluginPortal()
+                  mavenCentral()
+                  google()
+              }
+          }
+          GRADLE
 
       - run: flutter build apk --release
 
       - name: Release notes from CHANGELOG.md
+        if: startsWith(github.ref, 'refs/tags/')
         run: |
           version=${GITHUB_REF_NAME#v}
           awk -v v="## $version" '$0==v{p=1;next} /^## /{if(p)exit} p' CHANGELOG.md > notes.md
           [ -s notes.md ] || echo "See CHANGELOG.md" > notes.md
 
       - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/')
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
