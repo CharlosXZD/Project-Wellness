@@ -81,6 +81,14 @@ dependency_overrides:
   # on the next `flutter pub get` from a clean cache.
   flutter_tesseract_ocr:
     path: packages/flutter_tesseract_ocr
+  # file_picker 11.0.2 only applies the Kotlin Gradle plugin below AGP 9,
+  # expecting AGP 9's built-in Kotlin instead — which this project turns off
+  # (android.builtInKotlin=false), so its Kotlin sources silently didn't
+  # compile and GeneratedPluginRegistrant failed on a clean machine (the
+  # GitHub release build). Vendored with the Kotlin plugin applied
+  # unconditionally (packages/file_picker/android/build.gradle).
+  file_picker:
+    path: packages/file_picker
 
 dev_dependencies:
   flutter_test:
