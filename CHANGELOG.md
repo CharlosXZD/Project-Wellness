@@ -2,6 +2,10 @@
 
 All notable changes to Project Wellness are recorded here, release by release.
 
+## 2.24.1
+
+- Fixed the calorie target suddenly dropping (or jumping) overnight for no visible reason. When an old weigh-in got too old to count, the app stopped using it all at once, which could move your measured maintenance by ~250 kcal from one morning to the next. Older weigh-ins now fade out gradually, so the target moves a little each day. It only changes noticeably when you log a new weigh-in.
+
 ## 2.24.0
 
 - Home has a new "Today" card: calories left on a ring, whether you've trained today, and your latest weight. Each part is a shortcut. The Training and Nutrition cards now show live info ("Last: Push Day · yesterday", "1240 of 2095 kcal today") instead of fixed descriptions.

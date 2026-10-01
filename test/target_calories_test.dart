@@ -182,6 +182,25 @@ void main() {
       expect(noisy.result!.avgIntakeKcal, closeTo(base.result!.avgIntakeKcal, 1));
     });
 
+    test("doesn't jump overnight when an old weigh-in leaves the window", () {
+      // Sparse, uneven weigh-ins like a real user's: every 2-3 weeks.
+      final weights = [
+        _weight(43, 100.7),
+        _weight(25, 97.5),
+        _weight(10, 96.1),
+        _weight(3, 95.1),
+      ];
+      final food = [for (var d = 1; d <= 60; d++) _food(d, 1840)];
+      final today = measureTdeeFromLogs(foodEntries: food, weightEntries: weights, now: _now);
+      final yesterday = measureTdeeFromLogs(
+        foodEntries: food,
+        weightEntries: weights,
+        now: _now.subtract(const Duration(days: 1)),
+      );
+      // Day 43 is inside yesterday's 42-day window and just outside today's.
+      expect((today.result!.tdee - yesterday.result!.tdee).abs(), lessThan(40));
+    });
+
     test('needs enough data before claiming anything', () {
       final data = _steadyCut(days: 10);
       final status = measureTdeeFromLogs(foodEntries: data.food, weightEntries: data.weights, now: _now);

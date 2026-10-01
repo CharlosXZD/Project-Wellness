@@ -204,6 +204,10 @@ const _minWeighInSpanDays = 14;
 /// typos (e.g. 109 lb typed instead of 209) and ignored here.
 const _weightOutlierFraction = 0.07;
 
+/// How far before the window to look for the weigh-in that anchors the
+/// trend line's start.
+const _anchorLookbackDays = 60;
+
 /// See [MeasuredTdee]. Looks at the last 6 weeks, never including today
 /// (still being logged). Days with no food logged — or so little that it
 /// was obviously a partial log — are skipped rather than counted as zero.
@@ -242,34 +246,64 @@ MeasuredTdeeStatus measureTdeeFromLogs({
   final avgIntake = fullDays.reduce((a, b) => a + b) / fullDays.length;
 
   // Drop typos entry by entry (so one bad reading doesn't take a day's
-  // real ones down with it), then average same-day weigh-ins.
-  final windowEntries = weightEntries
-      .where((e) => !_dateOnly(e.date).isBefore(windowStart) && !_dateOnly(e.date).isAfter(today))
+  // real ones down with it), then average same-day weigh-ins. Looks back
+  // past the window too, for the anchor point below.
+  final lookbackStart = windowStart.subtract(const Duration(days: _anchorLookbackDays));
+  final recentEntries = weightEntries
+      .where((e) => !_dateOnly(e.date).isBefore(lookbackStart) && !_dateOnly(e.date).isAfter(today))
       .toList();
-  if (windowEntries.isEmpty) {
+  if (recentEntries.isEmpty) {
     return const MeasuredTdeeStatus._(null, 'Log your weight at least once a week');
   }
-  final sortedKg = windowEntries.map((e) => e.weightKg).toList()..sort();
+  final sortedKg = recentEntries.map((e) => e.weightKg).toList()..sort();
   final medianKg = sortedKg[sortedKg.length ~/ 2];
   final weightsByDay = <DateTime, List<double>>{};
-  for (final entry in windowEntries) {
+  for (final entry in recentEntries) {
     if ((entry.weightKg - medianKg).abs() > medianKg * _weightOutlierFraction) continue;
     weightsByDay.putIfAbsent(_dateOnly(entry.date), () => []).add(entry.weightKg);
   }
-  final points = [
+  final allPoints = [
     for (final e in weightsByDay.entries) (day: e.key, kg: e.value.reduce((a, b) => a + b) / e.value.length),
   ]..sort((a, b) => a.day.compareTo(b.day));
-  final weighInSpan = points.isEmpty ? 0 : points.last.day.difference(points.first.day).inDays;
-  if (points.length < _minWeighIns || weighInSpan < _minWeighInSpanDays) {
+
+  // The last weigh-in before the window opens anchors the trend line, so a
+  // weigh-in sliding out of the window fades out a day at a time instead
+  // of vanishing overnight. (Fitting only the points inside the window made
+  // the measured maintenance jump by ~250 kcal the morning one fell out.)
+  final before = allPoints.where((p) => p.day.isBefore(windowStart)).toList();
+  final inWindow = allPoints.where((p) => !p.day.isBefore(windowStart)).toList();
+  final anchor = before.isEmpty ? null : before.last;
+  final trendPoints = [if (anchor != null) anchor, ...inWindow];
+  final trendStart = anchor != null ? windowStart : (inWindow.isEmpty ? today : inWindow.first.day);
+  final trendEnd = inWindow.isEmpty ? trendStart : inWindow.last.day;
+  final trendSpan = trendEnd.difference(trendStart).inDays;
+  if (inWindow.isEmpty || trendPoints.length < _minWeighIns || trendSpan < _minWeighInSpanDays) {
     return MeasuredTdeeStatus._(
       null,
-      'Log your weight at least $_minWeighIns times over 2+ weeks (${points.length} in the last 6 weeks)',
+      'Log your weight at least $_minWeighIns times over 2+ weeks (${inWindow.length} in the last 6 weeks)',
     );
   }
 
-  // Least-squares slope, kg per day.
-  final xs = [for (final p in points) p.day.difference(windowStart).inDays.toDouble()];
-  final ys = [for (final p in points) p.kg];
+  // Weight for every day of the window, read off straight lines between
+  // weigh-ins, then a least-squares slope through those daily values —
+  // each day weighs the same, however unevenly the weigh-ins are spaced.
+  double weightOn(DateTime day) {
+    for (var i = 1; i < trendPoints.length; i++) {
+      final a = trendPoints[i - 1], b = trendPoints[i];
+      if (day.isAfter(b.day)) continue;
+      final span = b.day.difference(a.day).inDays;
+      final t = span == 0 ? 1.0 : day.difference(a.day).inDays / span;
+      return a.kg + (b.kg - a.kg) * t;
+    }
+    return trendPoints.last.kg;
+  }
+
+  final xs = <double>[];
+  final ys = <double>[];
+  for (var d = 0; d <= trendSpan; d++) {
+    xs.add(d.toDouble());
+    ys.add(weightOn(trendStart.add(Duration(days: d))));
+  }
   final meanX = xs.reduce((a, b) => a + b) / xs.length;
   final meanY = ys.reduce((a, b) => a + b) / ys.length;
   var num = 0.0, den = 0.0;
@@ -294,7 +328,7 @@ MeasuredTdeeStatus measureTdeeFromLogs({
       weightChangeKgPerWeek: slopeKgPerDay * 7,
       loggedDays: fullDays.length,
       windowDays: math.min(spanDays, _measureWindowDays),
-      weighIns: points.length,
+      weighIns: trendPoints.length,
     ),
     null,
   );
